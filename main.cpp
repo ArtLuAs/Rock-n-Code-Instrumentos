@@ -58,6 +58,7 @@ private:
     string cpf;
     string telefone;
     string email;
+    string sexo;
 
 public:
     Cliente() {}
@@ -67,6 +68,7 @@ public:
         this->cpf = cpf;
         this->telefone = telefone;
         this->email = email;
+        this->sexo = sexo; 
     }
 
     int getId() { return id; }
@@ -74,12 +76,14 @@ public:
     string getCpf() { return cpf; }
     string getTelefone() { return telefone; }
     string getEmail() { return email; }
+    string getSexo() { return sexo; } 
 
     // Id atributo imutável 
     void setNome(string nome) { this->nome = nome; }
     void setCpf(string cpf) { this->cpf = cpf; }
     void setTelefone(string telefone) { this->telefone = telefone; }
     void setEmail(string email) { this->email = email; }
+    void setSexo(string sexo) { this->sexo = sexo; }
 
     void exibir() {
         cout << "ID: " << id << endl;
@@ -87,6 +91,7 @@ public:
         cout << "CPF: " << cpf << endl;
         cout << "Telefone: " << telefone << endl;
         cout << "Email: " << email << endl;
+        cout << "Sexo: " << sexo << endl;
     }
 };
 
