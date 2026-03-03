@@ -177,14 +177,79 @@ public:
         cout << "Telefone: " << telefone << endl;
         cout << "=========================\n" << endl;
     }
+
+    void menu(PGconn* conn) {
+        int opcao = -1;
+        while (opcao != 0) {
+            cout << "\n===== MENU DE GERENCIAMENTO =====" << endl;
+            cout << "1. Inserir Instrumento" << endl;
+            cout << "2. Alterar Instrumento" << endl;
+            cout << "3. Pesquisar Instrumento por Nome" << endl;
+            cout << "4. Remover Instrumento" << endl;
+            cout << "5. Listar Todos os Instrumentos" << endl;
+            cout << "6. Exibir um Instrumento (por ID)" << endl;
+            cout << "7. Relatorio de Estoque" << endl;
+            cout << "0. Sair" << endl;
+            cout << "Escolha uma opcao: ";
+            cin >> opcao;
+
+            int idBusca, qtd;
+            string nome, tipo, marca;
+            double preco;
+
+            switch (opcao) {
+                case 1:
+                    cout << "Nome: "; cin.ignore(); getline(cin, nome);
+                    cout << "Tipo (guitarra/violao/baixo): "; getline(cin, tipo);
+                    cout << "Marca: "; getline(cin, marca);
+                    cout << "Preco: "; cin >> preco;
+                    cout << "Quantidade: "; cin >> qtd;
+                    inserirInstrumento(conn, Instrumento(0, nome, tipo, marca, preco, qtd));
+                    break;
+                case 2:
+                    cout << "ID do Instrumento a alterar: "; cin >> idBusca;
+                    cout << "Novo Nome: "; cin.ignore(); getline(cin, nome);
+                    cout << "Novo Tipo (guitarra/violao/baixo): "; getline(cin, tipo);
+                    cout << "Nova Marca: "; getline(cin, marca);
+                    cout << "Novo Preco: "; cin >> preco;
+                    cout << "Nova Quantidade: "; cin >> qtd;
+                    alterarInstrumento(conn, Instrumento(idBusca, nome, tipo, marca, preco, qtd));
+                    break;
+                case 3:
+                    cout << "Digite o nome para buscar: "; cin.ignore(); getline(cin, nome);
+                    pesquisarInstrumentoPorNome(conn, nome);
+                    break;
+                case 4:
+                    cout << "ID do Instrumento a remover: "; cin >> idBusca;
+                    removerInstrumento(conn, idBusca);
+                    break;
+                case 5:
+                    listarInstrumentos(conn);
+                    break;
+                case 6:
+                    cout << "ID do Instrumento: "; cin >> idBusca;
+                    exibirInstrumento(conn, idBusca);
+                    break;
+                case 7:
+                    relatorioEstoque(conn);
+                    break;
+                case 0:
+                    cout << "Encerrando o sistema..." << endl;
+                    break;
+                default:
+                    cout << "Opcao invalida!" << endl;
+            }
+        }
+    }
 };
 
 // ===================== FUNÇÃO PRINCIPAL =====================
 int main() {
-
-    // Conecta no banco
+    // Conecta ao banco
     PGconn* conn = conectar();
-    if (!conn) return 1;
+    if (conn == nullptr) {
+        return 1;
+    }
 
     Loja loja("Loja Musical", "00.000.000/0001-00", 
               "Rua das Guitarras, 123", "(11) 99999-9999");
@@ -192,15 +257,10 @@ int main() {
     cout << "Sistema da Loja iniciado com sucesso!" << endl;
     loja.exibir();
 
-    // ===================== INSERIR INSTRUMENTOS =====================
-    loja.inserirInstrumento(conn, Instrumento(0, "Stratocaster", "guitarra", "Fender", 7500.00, 5));
-    loja.inserirInstrumento(conn, Instrumento(0, "Les Paul", "guitarra", "Gibson", 12000.00, 3));
-    loja.inserirInstrumento(conn, Instrumento(0, "Violão Folk", "violao", "Yamaha", 1500.00, 10));
-    loja.inserirInstrumento(conn, Instrumento(0, "Baixo Precision", "baixo", "Fender", 4000.00, 4));
-    loja.inserirInstrumento(conn, Instrumento(0, "Violão Clássico", "violao", "Cordoba", 1800.00, 7));
+    // Chamar o menu interativo passando a conexão
+    loja.menu(conn);
 
-    loja.relatorioEstoque(conn);
-
-    PQfinish(conn); // Fecha a conexão
+    // Fechar a conexão ao sair do programa
+    PQfinish(conn);
     return 0;
 }
