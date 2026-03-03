@@ -1,5 +1,11 @@
+-- Criar usuário e senha
+CREATE USER lojamusical_user WITH PASSWORD 'SenhaSegura123';
+
 -- Criar banco
 CREATE DATABASE loja_musical;
+
+-- Dar permissões ao usuário no banco
+GRANT ALL PRIVILEGES ON DATABASE loja_musical TO lojamusical_user;
 
 -- Conectar no banco
 \c loja_musical;
@@ -14,32 +20,11 @@ CREATE TABLE instrumentos (
     quantidade INTEGER NOT NULL CHECK (quantidade >= 0)
 );
 
--- ===================== TABELA CLIENTES =====================
-CREATE TABLE clientes (
-    id SERIAL PRIMARY KEY,
-    nome VARCHAR(150) NOT NULL,
-    cpf VARCHAR(14) UNIQUE NOT NULL,
-    telefone VARCHAR(20),
-    email VARCHAR(150),
-    sexo VARCHAR(15)
-);
+-- Dar permissões no schema public
+GRANT ALL ON SCHEMA public TO lojamusical_user;
 
--- ===================== TABELA VENDAS =====================
-CREATE TABLE vendas (
-    id SERIAL PRIMARY KEY,
-    cliente_id INTEGER NOT NULL,
-    instrumento_id INTEGER NOT NULL,
-    quantidade INTEGER NOT NULL CHECK (quantidade > 0),
-    valor_total NUMERIC(10,2) NOT NULL,
-    data DATE NOT NULL DEFAULT CURRENT_DATE,
+-- Garantir permissão total na tabela para o usuário
+GRANT ALL PRIVILEGES ON TABLE instrumentos TO lojamusical_user;
 
-    CONSTRAINT fk_cliente
-        FOREIGN KEY (cliente_id)
-        REFERENCES clientes(id)
-        ON DELETE RESTRICT,
-
-    CONSTRAINT fk_instrumento
-        FOREIGN KEY (instrumento_id)
-        REFERENCES instrumentos(id)
-        ON DELETE RESTRICT
-);
+-- Garantir permissão na sequência (necessário para o SERIAL do ID funcionar nos INSERTS)
+GRANT USAGE, SELECT ON SEQUENCE instrumentos_id_seq TO lojamusical_user;

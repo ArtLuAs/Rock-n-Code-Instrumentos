@@ -1,8 +1,22 @@
 #include <iostream>
 #include <string>
 #include <vector>
+#include <libpq-fe.h>
 
 using namespace std;
+
+PGconn* conectar() {
+    PGconn* conn = PQconnectdb(
+        "host=localhost port=5432 dbname=loja_musical user=lojamusical_user password=SenhaSegura123"
+    );
+
+    if (PQstatus(conn) != CONNECTION_OK) {
+        cout << "Erro na conexão: " << PQerrorMessage(conn) << endl;
+        PQfinish(conn);
+        return nullptr;
+    }
+    return conn;
+}
 
 // ===================== CLASSE INSTRUMENTO =====================
 class Instrumento {
@@ -50,97 +64,6 @@ public:
     }
 };
 
-// ===================== CLASSE CLIENTE =====================
-class Cliente {
-private:
-    int id;
-    string nome;
-    string cpf;
-    string telefone;
-    string email;
-    string sexo;
-
-public:
-    Cliente() {}
-    Cliente(int id, string nome, string cpf, string telefone, string email) {
-        this->id = id;
-        this->nome = nome;
-        this->cpf = cpf;
-        this->telefone = telefone;
-        this->email = email;
-        this->sexo = sexo; 
-    }
-
-    int getId() { return id; }
-    string getNome() { return nome; }
-    string getCpf() { return cpf; }
-    string getTelefone() { return telefone; }
-    string getEmail() { return email; }
-    string getSexo() { return sexo; } 
-
-    // Id atributo imutável 
-    void setNome(string nome) { this->nome = nome; }
-    void setCpf(string cpf) { this->cpf = cpf; }
-    void setTelefone(string telefone) { this->telefone = telefone; }
-    void setEmail(string email) { this->email = email; }
-    void setSexo(string sexo) { this->sexo = sexo; }
-
-    void exibir() {
-        cout << "ID: " << id << endl;
-        cout << "Nome: " << nome << endl;
-        cout << "CPF: " << cpf << endl;
-        cout << "Telefone: " << telefone << endl;
-        cout << "Email: " << email << endl;
-        cout << "Sexo: " << sexo << endl;
-    }
-};
-
-// ===================== CLASSE VENDA =====================
-class Venda {
-private:
-    int id;
-    int clienteId;
-    int instrumentoId;
-    int quantidade;
-    double valorTotal;
-    string data;
-
-public:
-    Venda() {}
-    Venda(int id, int clienteId, int instrumentoId, int quantidade, double valorTotal, string data) {
-        this->id = id;
-        this->clienteId = clienteId;
-        this->instrumentoId = instrumentoId;
-        this->quantidade = quantidade;
-        this->valorTotal = valorTotal;
-        this->data = data;
-    }
-
-    int getId() { return id; }
-    int getClienteId() { return clienteId; }
-    int getInstrumentoId() { return instrumentoId; }
-    int getQuantidade() { return quantidade; }
-    double getValorTotal() { return valorTotal; }
-    string getData() { return data; }
-
-    // Id atributo imutável, chave estrangeira imutável
-    void setQuantidade(int quantidade) { this->quantidade = quantidade; }
-    void setValorTotal(double valorTotal) { this->valorTotal = valorTotal; }
-
-    void calcularTotal(double precoUnitario) {
-        valorTotal = precoUnitario * quantidade;
-    }
-
-    void exibir() {
-        cout << "ID Venda: " << id << endl;
-        cout << "Cliente ID: " << clienteId << endl;
-        cout << "Instrumento ID: " << instrumentoId << endl;
-        cout << "Quantidade: " << quantidade << endl;
-        cout << "Valor Total: " << valorTotal << endl;
-        cout << "Data: " << data << endl;
-    }
-};
-
 // ===================== CLASSE LOJA (GERENCIADOR CRUD) =====================
 class Loja {
 private:
@@ -148,6 +71,13 @@ private:
     string cnpj;
     string endereco;
     string telefone;
+
+    // Função auxiliar para verificar erros de execução do libpq
+    void checarErro(PGconn* conn, PGresult* res, const string& operacao) {
+        if (PQresultStatus(res) != PGRES_COMMAND_OK && PQresultStatus(res) != PGRES_TUPLES_OK) {
+            cout << "Erro ao " << operacao << ": " << PQerrorMessage(conn) << endl;
+        }
+    }
 
 public:
     Loja(string nome, string cnpj, string endereco, string telefone) {
@@ -158,113 +88,119 @@ public:
     }
 
     // ================= CRUD INSTRUMENTO =================
-    void inserirInstrumento(Instrumento instrumento) {
-        // Implementar inserção no banco
+    void inserirInstrumento(PGconn* conn, Instrumento inst) {
+        string query = "INSERT INTO instrumentos (nome, tipo, marca, preco, quantidade) VALUES ('" +
+                       inst.getNome() + "', '" + inst.getTipo() + "', '" + inst.getMarca() + "', " +
+                       to_string(inst.getPreco()) + ", " + to_string(inst.getQuantidade()) + ");";
+        PGresult* res = PQexec(conn, query.c_str());
+        checarErro(conn, res, "inserir instrumento");
+        PQclear(res);
     }
 
-    void alterarInstrumento(int id) {
-        // Implementar alteração no banco
+    void alterarInstrumento(PGconn* conn, Instrumento inst) {
+        string query = "UPDATE instrumentos SET nome = '" + inst.getNome() + 
+                       "', tipo = '" + inst.getTipo() + 
+                       "', marca = '" + inst.getMarca() + 
+                       "', preco = " + to_string(inst.getPreco()) + 
+                       ", quantidade = " + to_string(inst.getQuantidade()) + 
+                       " WHERE id = " + to_string(inst.getId()) + ";";
+        PGresult* res = PQexec(conn, query.c_str());
+        checarErro(conn, res, "alterar instrumento");
+        PQclear(res);
     }
 
-    void pesquisarInstrumentoPorNome(string nome) {
-        // Implementar busca no banco
+    void pesquisarInstrumentoPorNome(PGconn* conn, string nomeBusca) {
+        string query = "SELECT id, nome, tipo, marca, preco, quantidade FROM instrumentos WHERE nome ILIKE '%" + nomeBusca + "%';";
+        PGresult* res = PQexec(conn, query.c_str());
+        checarErro(conn, res, "pesquisar instrumento");
+        
+        int rows = PQntuples(res);
+        for(int i = 0; i < rows; i++) {
+            Instrumento(atoi(PQgetvalue(res, i, 0)), PQgetvalue(res, i, 1), PQgetvalue(res, i, 2),
+                        PQgetvalue(res, i, 3), atof(PQgetvalue(res, i, 4)), atoi(PQgetvalue(res, i, 5))).exibir();
+        }
+        PQclear(res);
     }
 
-    void removerInstrumento(int id) {
-        // Implementar remoção no banco
+    void removerInstrumento(PGconn* conn, int id) {
+        string query = "DELETE FROM instrumentos WHERE id = " + to_string(id) + ";";
+        PGresult* res = PQexec(conn, query.c_str());
+        checarErro(conn, res, "remover instrumento");
+        PQclear(res);
     }
 
-    void listarInstrumentos() {
-        // Implementar listagem no banco
+    void listarInstrumentos(PGconn* conn) {
+        PGresult* res = PQexec(conn, "SELECT id, nome, tipo, marca, preco, quantidade FROM instrumentos ORDER BY id;");
+        checarErro(conn, res, "listar instrumentos");
+        
+        int rows = PQntuples(res);
+        for(int i = 0; i < rows; i++) {
+            Instrumento(atoi(PQgetvalue(res, i, 0)), PQgetvalue(res, i, 1), PQgetvalue(res, i, 2),
+                        PQgetvalue(res, i, 3), atof(PQgetvalue(res, i, 4)), atoi(PQgetvalue(res, i, 5))).exibir();
+        }
+        PQclear(res);
     }
 
-    void exibirInstrumento(int id) {
-        // Implementar exibição de um registro
-    }
-
-    // ================= CRUD CLIENTE =================
-    void inserirCliente(Cliente cliente) {
-        // Implementar inserção no banco
-    }
-
-    void alterarCliente(int id) {
-        // Implementar alteração no banco
-    }
-
-    void pesquisarClientePorNome(string nome) {
-        // Implementar busca no banco
-    }
-
-    void removerCliente(int id) {
-        // Implementar remoção
-    }
-
-    void listarClientes() {
-        // Implementar listagem
-    }
-
-    void exibirCliente(int id) {
-        // Implementar exibição de um
-    }
-
-    // ================= CRUD VENDA =================
-    void inserirVenda(Venda venda) {
-        // Implementar inserção
-    }
-
-    void alterarVenda(int id) {
-        // Implementar alteração
-    }
-
-    void pesquisarVendaPorNome(string nomeCliente) {
-        // Implementar busca
-    }
-
-    void removerVenda(int id) {
-        // Implementar remoção
-    }
-
-    void listarVendas() {
-        // Implementar listagem
-    }
-
-    void exibirVenda(int id) {
-        // Implementar exibição
+    void exibirInstrumento(PGconn* conn, int id) {
+        string query = "SELECT id, nome, tipo, marca, preco, quantidade FROM instrumentos WHERE id = " + to_string(id) + ";";
+        PGresult* res = PQexec(conn, query.c_str());
+        checarErro(conn, res, "exibir instrumento");
+        
+        if (PQntuples(res) > 0) {
+            Instrumento(atoi(PQgetvalue(res, 0, 0)), PQgetvalue(res, 0, 1), PQgetvalue(res, 0, 2),
+                        PQgetvalue(res, 0, 3), atof(PQgetvalue(res, 0, 4)), atoi(PQgetvalue(res, 0, 5))).exibir();
+        } else {
+            cout << "Instrumento não encontrado." << endl;
+        }
+        PQclear(res);
     }
 
     // ================= RELATÓRIOS =================
-    void relatorioEstoque() {
-        // Exibir quantidade total de instrumentos
-        // Exibir valor total em estoque
-    }
-
-    void relatorioClientes() {
-        // Exibir total de clientes cadastrados
-    }
-
-    void relatorioVendas() {
-        // Exibir total de vendas realizadas
-        // Exibir valor total vendido
+    void relatorioEstoque(PGconn* conn) {
+        PGresult* res = PQexec(conn, "SELECT SUM(quantidade), SUM(preco * quantidade) FROM instrumentos;");
+        checarErro(conn, res, "gerar relatório de estoque");
+        
+        if (PQntuples(res) > 0) {
+            cout << "\n--- RELATÓRIO DE ESTOQUE ---\n" << endl;
+            cout << "Quantidade Total de Instrumentos: " << PQgetvalue(res, 0, 0) << endl;
+            cout << "Valor Total em Estoque: R$ " << PQgetvalue(res, 0, 1) << endl;
+            cout << "\n----------------------------\n" << endl;
+        }
+        PQclear(res);
     }
     
     void exibir() {
-    cout << "===== DADOS DA LOJA =====" << endl;
-    cout << "Nome: " << nome << endl;
-    cout << "CNPJ: " << cnpj << endl;
-    cout << "Endereço: " << endereco << endl;
-    cout << "Telefone: " << telefone << endl;
-}
+        cout << "\n===== DADOS DA LOJA =====" << endl;
+        cout << "Nome: " << nome << endl;
+        cout << "CNPJ: " << cnpj << endl;
+        cout << "Endereço: " << endereco << endl;
+        cout << "Telefone: " << telefone << endl;
+        cout << "=========================\n" << endl;
+    }
 };
 
 // ===================== FUNÇÃO PRINCIPAL =====================
 int main() {
 
+    // Conecta no banco
+    PGconn* conn = conectar();
+    if (!conn) return 1;
+
     Loja loja("Loja Musical", "00.000.000/0001-00", 
               "Rua das Guitarras, 123", "(11) 99999-9999");
 
     cout << "Sistema da Loja iniciado com sucesso!" << endl;
-    
     loja.exibir();
 
+    // ===================== INSERIR INSTRUMENTOS =====================
+    loja.inserirInstrumento(conn, Instrumento(0, "Stratocaster", "guitarra", "Fender", 7500.00, 5));
+    loja.inserirInstrumento(conn, Instrumento(0, "Les Paul", "guitarra", "Gibson", 12000.00, 3));
+    loja.inserirInstrumento(conn, Instrumento(0, "Violão Folk", "violao", "Yamaha", 1500.00, 10));
+    loja.inserirInstrumento(conn, Instrumento(0, "Baixo Precision", "baixo", "Fender", 4000.00, 4));
+    loja.inserirInstrumento(conn, Instrumento(0, "Violão Clássico", "violao", "Cordoba", 1800.00, 7));
+
+    loja.relatorioEstoque(conn);
+
+    PQfinish(conn); // Fecha a conexão
     return 0;
 }
