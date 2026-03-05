@@ -128,7 +128,7 @@ Esta classe gerencia as informações gerais do estabelecimento e centraliza tod
 * **`telefone`** (`string`): Informação de contato.
 
 **Relacionamento com o Banco de Dados:**
-A classe `Loja` não armazena listas de instrumentos em memória (como vetores ou listas encadeadas). Em vez disso, seus métodos (`inserirInstrumento`, `alterarInstrumento`, `listarInstrumentos`, etc.) recebem um ponteiro de conexão PostgreSQL (`PGconn*`) e executam queries SQL diretas usando a biblioteca `libpq`. Toda vez que o usuário solicita uma ação no menu, a classe converte a requisição em uma instrução SQL, garantindo que o C++ reflita o estado em tempo real do banco de dados.
+Os métodos da classe `Loja` (`inserirInstrumento`, `alterarInstrumento`, `listarInstrumentos`, etc.) recebem um ponteiro de conexão PostgreSQL (`PGconn*`) e executam queries SQL diretas usando a biblioteca `libpq`. Toda vez que o usuário solicita uma ação no menu, a classe converte a requisição em uma instrução SQL, garantindo que o C++ reflita o estado em tempo real do banco de dados.
 
 <a href="https://github.com/pedroarawj">
   <img 
