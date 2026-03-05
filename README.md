@@ -55,6 +55,27 @@ O sistema segue aos requisitos de desenvolvimento estabelecidos pelas especifica
 ## :notes: Diagrama de Classes
 
 ## :control_knobs: Dependências
+
+Este projeto foi desenvolvido utilizando funcionalidades essenciais da biblioteca padrão do C++ e uma biblioteca externa fundamental para a integração com o banco de dados relacional[^1][^2]. Abaixo, dissertamos sobre a utilidade de cada uma das bibliotecas implementadas e exemplos de sua utilidade dentro do sistema:
+
+[^1]: ***[Biblioteca Padrão do C++](https://en.cppreference.com/w/cpp/header)***
+[^2]: ***[PostgreSQL C API (libpq)](https://www.postgresql.org/docs/current/libpq.html)***
+
+### Biblioteca Padrão
+
+- **`<iostream>`**: Usada para operações básicas de entrada e saída, como leitura de dados do teclado (`std::cin`) e escrita de dados na tela (`std::cout`).
+  - **Implementação:** Na interação direta com o usuário via terminal, exibindo o menu de gerenciamento e coletando os dados dos instrumentos musicais para as operações do sistema.
+
+- **`<string>`**: Fornece suporte à manipulação de cadeias de caracteres, permitindo o uso da classe `std::string` e métodos utilitários, tornando o trabalho com textos mais seguro e conveniente.
+  - **Implementação:** No armazenamento dos atributos textuais da classe `Instrumento` (como nome, tipo e marca) e, principalmente, na concatenação dinâmica das *queries* SQL (`INSERT`, `UPDATE`, `SELECT`) que são enviadas ao banco de dados.
+
+- **`<cstdlib>`** *(implícita na compilação)*: Biblioteca herdada do C que fornece funções gerais, incluindo conversões de texto para números, como `atoi()` e `atof()`.
+  - **Implementação:** Utilizada na extração dos dados retornados pelo banco de dados. Como o PostgreSQL retorna os valores em formato de texto (`PQgetvalue`), essas funções convertem os dados de volta para os tipos numéricos corretos (`int` para IDs e quantidade, `double` para preço) na hora de exibir as informações.
+
+### Bibliotecas Externas / Banco de Dados
+
+- **`<libpq-fe.h>`** *(Interface C do PostgreSQL)*: É a biblioteca C oficial do PostgreSQL. Ela permite que programas clientes passem consultas para o servidor de banco de dados e recebam os resultados de volta.
+  - **Implementação:** É o núcleo da persistência de dados do projeto. Utilizada ativamente na classe `Loja` para estabelecer a conexão com o banco `loja_musical` (usando `PQconnectdb`), enviar os comandos CRUD (usando `PQexec`), e gerenciar o estado da conexão e da memória alocada para os resultados (com ponteiros genéricos `PGconn` e `PGresult`).
  
 <a href="https://github.com/Yvesena">
   <img 
@@ -66,7 +87,48 @@ O sistema segue aos requisitos de desenvolvimento estabelecidos pelas especifica
 
 ## :musical_score: Documentação
 
-Conforme as informações relatadas na seção (Objetivo)[#dart-objetivo-1], a complexidade do programa está nos cálculos a partir das fórmulas vistas na disciplina. Com base nisso, a documentação aqui apresentada dá ênfase a essa complexidade, relevando algumas nuances presentes no código. 
+### :open_file_folder: Estrutura do Projeto
+
+```text
+.
+├── include/
+│   ├── instrumento.hpp      # Declaração da classe Instrumento
+│   └── lojaGerencia.hpp     # Declaração da classe Loja e operações de DB
+├── src/
+│   ├── instrumento.cpp      # Implementação da classe Instrumento (Getters/Setters)
+│   ├── lojaGerencia.cpp     # Implementação do CRUD, relatórios e menu interativo
+│   └── main.cpp             # Ponto de entrada, inicialização e conexão com o banco
+├── sql/
+│   └── loja_musical.sql     # Script de criação do banco de dados, tabelas e permissões
+└── README.md                # Este arquivo, documenta o projeto
+```
+
+### :page_facing_up: Classes e Atributos
+
+A parte 1 do sistema do Rock ’n’ Code Instrumentos é estruturado em torno de duas classes principais em C++, que separam a representação dos dados da lógica de negócios e persistência.
+
+**1. Classe `Instrumento`**:
+Esta classe atua como o modelo de dados (Data Transfer Object) do sistema. Ela armazena as informações de um instrumento musical em memória antes de ser enviado ou após ser recuperado do banco de dados.
+
+**Atributos:**
+* **`id`** (`int`): Identificador único do instrumento (gerenciado pelo banco de dados).
+* **`nome`** (`string`): Nome ou modelo do instrumento (ex: "Stratocaster").
+* **`tipo`** (`string`): Categoria do instrumento. Restrito a guitarra, violao ou baixo.
+* **`marca`** (`string`): Fabricante do instrumento (ex: "Fender", "Gibson").
+* **`preco`** (`double`): Valor monetário de venda do instrumento.
+* **`quantidade`** (`int`): Total de unidades disponíveis no estoque físico.
+
+**2. Classe `Loja`**:
+Esta classe gerencia as informações gerais do estabelecimento e centraliza toda a lógica de interação com o usuário (Menu) e com o banco de dados (CRUD). 
+
+**Atributos Principais:**
+* **`nome`** (`string`): Razão social ou nome fantasia ("Loja Musical").
+* **`cnpj`** (`string`): Registro corporativo da loja.
+* **`endereco`** (`string`): Localização física da loja.
+* **`telefone`** (`string`): Informação de contato.
+
+**Relacionamento com o Banco de Dados:**
+A classe `Loja` não armazena listas de instrumentos em memória (como vetores ou listas encadeadas). Em vez disso, seus métodos (`inserirInstrumento`, `alterarInstrumento`, `listarInstrumentos`, etc.) recebem um ponteiro de conexão PostgreSQL (`PGconn*`) e executam queries SQL diretas usando a biblioteca `libpq`. Toda vez que o usuário solicita uma ação no menu, a classe converte a requisição em uma instrução SQL, garantindo que o C++ reflita o estado em tempo real do banco de dados.
 
 <a href="https://github.com/pedroarawj">
   <img 
