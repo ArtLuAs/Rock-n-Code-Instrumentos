@@ -1,4 +1,4 @@
-#include "instrumento.hpp"
+#include "../headers/instrumento.hpp"
 
 using namespace std;
 

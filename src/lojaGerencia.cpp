@@ -1,4 +1,4 @@
-#include "lojaGerencia.hpp"
+#include "../headers/lojaGerencia.hpp"
 #include <iostream>
 
 using namespace std;
