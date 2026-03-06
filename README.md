@@ -54,6 +54,8 @@ O sistema segue aos requisitos de desenvolvimento estabelecidos pelas especifica
 
 ## :notes: Diagrama de Classes
 
+![Diagrama Rock n Code](./docs/DIAGRAMAROCKNCODE.png)
+
 ## :control_knobs: Dependências
 
 Este projeto foi desenvolvido utilizando funcionalidades essenciais da biblioteca padrão do C++ e uma biblioteca externa fundamental para a integração com o banco de dados relacional[^1][^2]. Abaixo, dissertamos sobre a utilidade de cada uma das bibliotecas implementadas e exemplos de sua utilidade dentro do sistema:
@@ -91,7 +93,7 @@ Este projeto foi desenvolvido utilizando funcionalidades essenciais da bibliotec
 
 ```text
 .
-├── include/
+├── headers/
 │   ├── instrumento.hpp      # Declaração da classe Instrumento
 │   └── lojaGerencia.hpp     # Declaração da classe Loja e operações de DB
 ├── src/
@@ -100,6 +102,7 @@ Este projeto foi desenvolvido utilizando funcionalidades essenciais da bibliotec
 │   └── main.cpp             # Ponto de entrada, inicialização e conexão com o banco
 ├── sql/
 │   └── loja_musical.sql     # Script de criação do banco de dados, tabelas e permissões
+├── docs/                    # Arquivos que documentam ou representam o projeto
 └── README.md                # Este arquivo, documenta o projeto
 ```
 
@@ -140,7 +143,87 @@ Os métodos da classe `Loja` (`inserirInstrumento`, `alterarInstrumento`, `lista
 
 ## :loud_sound: Como rodar
 
+***Requisitos***
+- Um compilador C++, recomendamos o `g++` ou o `clang++`
+- Um terminal de linha de comando
+- PostgreSQL instalado (incluindo a biblioteca `libpq`)
+
 [**Atenção:** Lembre de baixar o projeto e extraí-lo devidamente do `.zip`.](#guitarmusical_note-rock-n-code-instrumentos)
+
+### No Windows (Recomendado via MSYS2 / MinGW)
+
+Esta é a forma mais direta caso você utilize o ambiente `MSYS2 (UCRT64)`. 
+
+Primeiro, certifique-se de ter disponível o seu compilador de preferência.
+Após isso, certifique-se de instalar as dependências `PostgreSQL` no terminal do `MSYS2`:
+
+```sh
+pacman -S mingw-w64-ucrt-x86_64-postgresql
+```
+
+Utilizando `g++` para compilar:
+
+```sh
+g++ .\src\*.cpp .\main.cpp -o loja.exe -lpq
+```
+
+Utilizando `clang++` para compilar:
+
+```sh
+clang++ .\src\*.cpp .\main.cpp -o loja.exe -lpq
+```
+
+Para rodar:
+
+```sh
+.\loja.exe
+```
+
+### No Windows (Referenciando o local em disco do include)
+
+Caso você tenha o `PostgreSQL` instalado no Windows (sem `MSYS2`) e queira apontar os caminhos da biblioteca manualmente. Lembre-se que a arquitetura do seu compilador (ex: 64 bits) deve ser compatível com a arquitetura da instalação do `Postgres`.
+
+Utilizando `g++` para compilar (substitua `<versao>` pela versão do seu banco, ex: 15):
+
+```sh
+g++ src\*.cpp main.cpp -I"C:\Program Files\PostgreSQL\<versao>\include" -L"C:\Program Files\PostgreSQL\<versao>\lib" -lpq -o loja.exe
+```
+
+Nota: Ao compilar dessa forma, se a `libpq.dll` não estiver mapeada nas Variáveis de Ambiente (PATH) do seu sistema, o executável poderá não abrir. Caso isso ocorra, basta copiar o arquivo libpq.dll da pasta lib do `PostgreSQL` para o mesmo diretório onde o loja.exe foi gerado.
+
+### Linux (Bash)
+
+Antes de compilar no Linux, certifique-se de ter os pacotes de desenvolvimento do `PostgreSQL` instalados. Em distribuições baseadas em Debian/Ubuntu, utilize:
+
+```sh
+sudo apt-get install libpq-dev
+```
+
+Utilizando `g++` para compilar:
+
+```sh
+g++ src/*.cpp main.cpp -lpq -o loja.out
+```
+
+Utilizando `clang++` para compilar:
+
+```sh
+clang++ src/*.cpp main.cpp -lpq -o loja.out
+```
+
+Para rodar:
+
+```sh
+./loja.out
+```
+
+### Atenção
+Para warnings referentes a codificação, recomendamos o uso da seguinte flag na compilação (válido para clang++)
+```sh
+-Wno-invalid-source-encoding
+```
+
+**OBS.:** Utilizamos de barra normal ('/') considerando um ambiente como Git Bash, WSL e PowerShell, considere utilizar de barra invertida ('\\') em caso de não compilar
 
 <a href="https://github.com/MarcoFilho1">
   <img 
