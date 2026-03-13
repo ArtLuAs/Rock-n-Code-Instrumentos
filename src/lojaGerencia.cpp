@@ -1,192 +1,341 @@
 #include "../headers/lojaGerencia.hpp"
+#include <cstdlib>
 #include <iostream>
+#include <limits>
 
 using namespace std;
 
 PGconn* conectar() {
-    PGconn* conn = PQconnectdb(
-        "host=localhost port=5432 dbname=loja_musical user=lojamusical_user password=SenhaSegura123"
-    );
+        PGconn* conn = PQconnectdb(
+            "host=localhost port=5432 dbname=loja_musical user=lojamusical_user password=SenhaSegura123");
 
-    if (PQstatus(conn) != CONNECTION_OK) {
-        cout << "Erro na conexão: " << PQerrorMessage(conn) << endl;
-        PQfinish(conn);
-        return nullptr;
-    }
-    return conn;
+        if (PQstatus(conn) != CONNECTION_OK) {
+                cout << "Erro na conexao: " << PQerrorMessage(conn) << endl;
+                PQfinish(conn);
+                return nullptr;
+        }
+        return conn;
 }
 
 Loja::Loja(string nome, string cnpj, string endereco, string telefone) {
-    this->nome = nome;
-    this->cnpj = cnpj;
-    this->endereco = endereco;
-    this->telefone = telefone;
+        this->nome = nome;
+        this->cnpj = cnpj;
+        this->endereco = endereco;
+        this->telefone = telefone;
 }
 
 void Loja::checarErro(PGconn* conn, PGresult* res, const string& operacao) {
-    if (PQresultStatus(res) != PGRES_COMMAND_OK && PQresultStatus(res) != PGRES_TUPLES_OK) {
-        cout << "Erro ao " << operacao << ": "<< PQerrorMessage(conn) << endl;
-    }
+        if (PQresultStatus(res) != PGRES_COMMAND_OK && PQresultStatus(res) != PGRES_TUPLES_OK) {
+                cout << "Erro ao " << operacao << ": " << PQerrorMessage(conn) << endl;
+        }
 }
 
 // ===== IMPLEMENTAÇÃO DO CRUD =====
 
 void Loja::inserirInstrumento(PGconn* conn, Instrumento inst) {
-    string query = "INSERT INTO instrumentos (nome, tipo, marca, preco, quantidade) VALUES ('" + inst.getNome() + "', '" + inst.getTipo() + "', '" + inst.getMarca() + "', " +
-                   to_string(inst.getPreco()) + ", " + to_string(inst.getQuantidade()) + ");";
-    PGresult* res = PQexec(conn, query.c_str());
-    checarErro(conn, res, "inserir instrumento");
-    PQclear(res);
+        string query = "INSERT INTO instrumentos (nome, tipo, marca, preco, quantidade) VALUES ('" + inst.getNome() + "', '" + inst.getTipo() + "', '" + inst.getMarca() + "', " +
+            to_string(inst.getPreco()) + ", " + to_string(inst.getQuantidade()) + ");";
+        PGresult* res = PQexec(conn, query.c_str());
+        checarErro(conn, res, "inserir instrumento");
+        PQclear(res);
 }
 
 void Loja::alterarInstrumento(PGconn* conn, Instrumento inst) {
-    string query = "UPDATE instrumentos SET nome = '" + inst.getNome() +
-                   "', tipo = '" + inst.getTipo() +
-                   "', marca = '" + inst.getMarca() +
-                   "', preco = " + to_string(inst.getPreco()) +
-                   ", quantidade = " + to_string(inst.getQuantidade()) +
-                   " WHERE id = " + to_string(inst.getId()) + ";";
-    PGresult* res = PQexec(conn, query.c_str());
-    checarErro(conn, res, "alterar instrumento");
-    PQclear(res);
+        string query = "UPDATE instrumentos SET nome = '" + inst.getNome() +
+            "', tipo = '" + inst.getTipo() +
+            "', marca = '" + inst.getMarca() +
+            "', preco = " + to_string(inst.getPreco()) +
+            ", quantidade = " + to_string(inst.getQuantidade()) +
+            " WHERE id = " + to_string(inst.getId()) + ";";
+        PGresult* res = PQexec(conn, query.c_str());
+        checarErro(conn, res, "alterar instrumento");
+        PQclear(res);
 }
 
 void Loja::pesquisarInstrumentoPorNome(PGconn* conn, string nomeBusca) {
-    string query = "SELECT id, nome, tipo, marca, preco, quantidade FROM instrumentos WHERE nome ILIKE '%" + nomeBusca + "%';";
-    PGresult* res = PQexec(conn, query.c_str());
-    checarErro(conn, res, "pesquisar instrumento");
+        string query = "SELECT id, nome, tipo, marca, preco, quantidade FROM instrumentos WHERE nome ILIKE '%" + nomeBusca + "%';";
+        PGresult* res = PQexec(conn, query.c_str());
+        checarErro(conn, res, "pesquisar instrumento");
 
-    int rows = PQntuples(res);
-    for(int i = 0; i < rows; i++) {
-        Instrumento(atoi(PQgetvalue(res, i, 0)), PQgetvalue(res, i, 1),
-                    PQgetvalue(res, i, 2), PQgetvalue(res, i, 3),
-                    atof(PQgetvalue(res, i, 4)),
-                    atoi(PQgetvalue(res, i, 5))).exibir();
-    }
-    PQclear(res);
+        int rows = PQntuples(res);
+        for (int i = 0; i < rows; i++) {
+                Instrumento(atoi(PQgetvalue(res, i, 0)), PQgetvalue(res, i, 1),
+                            PQgetvalue(res, i, 2), PQgetvalue(res, i, 3),
+                            atof(PQgetvalue(res, i, 4)),
+                            atoi(PQgetvalue(res, i, 5)))
+                    .exibir();
+        }
+        PQclear(res);
 }
 
 void Loja::removerInstrumento(PGconn* conn, int id) {
-    string query = "DELETE FROM instrumentos WHERE id = " + to_string(id) + ";";
-    PGresult* res = PQexec(conn, query.c_str());
-    checarErro(conn, res, "remover instrumento");
-    PQclear(res);
+
+        string query = "DELETE FROM instrumentos WHERE id = " + to_string(id) + ";";
+        PGresult* res = PQexec(conn, query.c_str());
+        checarErro(conn, res, "remover instrumento");
+        PQclear(res);
 }
 
 void Loja::listarInstrumentos(PGconn* conn) {
-    PGresult* res = PQexec(conn,
-        "SELECT id, nome, tipo, marca, preco, quantidade FROM instrumentos ORDER BY id;");
-    checarErro(conn, res, "listar instrumentos");
+        PGresult* res = PQexec(conn,
+                               "SELECT id, nome, tipo, marca, preco, quantidade FROM instrumentos ORDER BY id;");
+        checarErro(conn, res, "listar instrumentos");
 
-    int rows = PQntuples(res);
-    for(int i = 0; i < rows; i++) {
-        Instrumento(atoi(PQgetvalue(res, i, 0)), PQgetvalue(res, i, 1),
-                    PQgetvalue(res, i, 2), PQgetvalue(res, i, 3),
-                    atof(PQgetvalue(res, i, 4)),
-                    atoi(PQgetvalue(res, i, 5))).exibir();
-    }
-    PQclear(res);
+        int rows = PQntuples(res);
+        for (int i = 0; i < rows; i++) {
+                Instrumento(atoi(PQgetvalue(res, i, 0)), PQgetvalue(res, i, 1),
+                            PQgetvalue(res, i, 2), PQgetvalue(res, i, 3),
+                            atof(PQgetvalue(res, i, 4)),
+                            atoi(PQgetvalue(res, i, 5)))
+                    .exibir();
+        }
+        PQclear(res);
 }
 
 void Loja::exibirInstrumento(PGconn* conn, int id) {
-    string query = "SELECT id, nome, tipo, marca, preco, quantidade FROM instrumentos WHERE id = " + to_string(id) + ";";
-    PGresult* res = PQexec(conn, query.c_str());
-    checarErro(conn, res, "exibir instrumento");
+        string query = "SELECT id, nome, tipo, marca, preco, quantidade FROM instrumentos WHERE id = " + to_string(id) + ";";
+        PGresult* res = PQexec(conn, query.c_str());
+        checarErro(conn, res, "exibir instrumento");
 
-    if (PQntuples(res) > 0) {
-        Instrumento(atoi(PQgetvalue(res, 0, 0)), PQgetvalue(res, 0, 1),
-                    PQgetvalue(res, 0, 2), PQgetvalue(res, 0, 3),
-                    atof(PQgetvalue(res, 0, 4)),
-                    atoi(PQgetvalue(res, 0, 5))).exibir();
-    } else {
-        cout << "Instrumento não encontrado." << endl;
-    }
-    PQclear(res);
+        if (PQntuples(res) > 0) {
+                Instrumento(atoi(PQgetvalue(res, 0, 0)), PQgetvalue(res, 0, 1),
+                            PQgetvalue(res, 0, 2), PQgetvalue(res, 0, 3),
+                            atof(PQgetvalue(res, 0, 4)),
+                            atoi(PQgetvalue(res, 0, 5)))
+                    .exibir();
+        } else {
+                cout << "Instrumento nao encontrado." << endl;
+        }
+        PQclear(res);
+}
+
+bool Loja::possuiInstrumentosCadastrados(PGconn* conn) {
+        PGresult* res = PQexec(conn, "SELECT COUNT(*) FROM instrumentos;");
+        checarErro(conn, res, "contar instrumentos cadastrados");
+
+        int totalInstrumentos = 0;
+        if (PQntuples(res) > 0) {
+                totalInstrumentos = atoi(PQgetvalue(res, 0, 0));
+        }
+        PQclear(res);
+
+        return totalInstrumentos > 0;
 }
 
 void Loja::relatorioEstoque(PGconn* conn) {
-    PGresult* res = PQexec(conn,
-        "SELECT SUM(quantidade), SUM(preco * quantidade) FROM instrumentos;");
-    checarErro(conn, res, "gerar relatório de estoque");
+        PGresult* res = PQexec(conn,
+                               "SELECT COALESCE(SUM(quantidade), 0), COALESCE(SUM(preco * quantidade), 0) FROM instrumentos;");
+        checarErro(conn, res, "gerar relatorio de estoque");
+        PGresult* res2 = PQexec(conn,
+                                "SELECT COUNT(*) FROM instrumentos WHERE quantidade = 0;");
+        checarErro(conn, res2, "gerar relatorio de estoque 2");
 
-    if (PQntuples(res) > 0) {
-        cout << "\n--- RELATÓRIO DE ESTOQUE ---\n" << endl;
-        cout << "Quantidade Total: " << PQgetvalue(res, 0, 0) << endl;
-        cout << "Valor Total: R$ " << PQgetvalue(res, 0, 1) << endl;
-        cout << "----------------------------\n" << endl;
-    }
-    PQclear(res);
+        if (PQntuples(res) > 0 && PQntuples(res2) > 0) {
+                cout << "\n--- RELATORIO DE ESTOQUE ---\n"
+                     << endl;
+                cout << "Quantidade Total: " << PQgetvalue(res, 0, 0) << endl;
+                cout << "Valor Total: R$ " << PQgetvalue(res, 0, 1) << endl;
+                cout << "Numero de Instrumentos sem Estoque: " << PQgetvalue(res2, 0, 0) << endl;
+                cout << "----------------------------\n"
+                     << endl;
+        }
+        PQclear(res2);
+        PQclear(res);
 }
 
 void Loja::exibir() {
-    cout << "\n===== DADOS DA LOJA =====" << endl;
-    cout << "Nome: " << nome << endl;
-    cout << "CNPJ: " << cnpj << endl;
-    cout << "Endereço: " << endereco << endl;
-    cout << "Telefone: " << telefone << endl;
-    cout << "=========================\n" << endl;
+        cout << "\n===== DADOS DA LOJA =====" << endl;
+        cout << "Nome: " << nome << endl;
+        cout << "CNPJ: " << cnpj << endl;
+        cout << "Endereco: " << endereco << endl;
+        cout << "Telefone: " << telefone << endl;
+        cout << "=========================\n"
+             << endl;
+}
+
+static void clearTerminal() {
+#ifdef _WIN32
+        system("cls");
+#else
+        system("clear");
+#endif
 }
 
 void Loja::menu(PGconn* conn) {
-    int opcao = -1;
-    while (opcao != 0) {
-        cout << "\n===== MENU DE GERENCIAMENTO =====" << endl;
-        cout << "1. Inserir Instrumento" << endl;
-        cout << "2. Alterar Instrumento" << endl;
-        cout << "3. Pesquisar Instrumento por Nome" << endl;
-        cout << "4. Remover Instrumento" << endl;
-        cout << "5. Listar Todos os Instrumentos" << endl;
-        cout << "6. Exibir um Instrumento (por ID)" << endl;
-        cout << "7. Relatorio de Estoque" << endl;
-        cout << "0. Sair" << endl;
-        cout << "\nEscolha uma opcao: ";
-        cin >> opcao;
+        int opcao = -1;
+        while (opcao != 0) {
+                cout << "\n===== MENU DE GERENCIAMENTO =====" << endl;
+                cout << "1. Inserir Instrumento" << endl;
+                cout << "2. Alterar Instrumento" << endl;
+                cout << "3. Pesquisar Instrumento por Nome" << endl;
+                cout << "4. Remover Instrumento" << endl;
+                cout << "5. Listar Todos os Instrumentos" << endl;
+                cout << "6. Exibir um Instrumento (por ID)" << endl;
+                cout << "7. Relatorio de Estoque" << endl;
+                cout << "0. Sair" << endl;
+                cout << "\nEscolha uma opcao: ";
+                cin >> opcao;
 
-        int idBusca, qtd;
-        string nome, tipo, marca;
-        double preco;
+                int idBusca, qtd;
+                string nome, tipo, marca;
+                double preco;
 
-        switch (opcao) {
-            case 1:
-                cout << "Nome: "; cin.ignore(); getline(cin, nome);
-                cout << "Tipo (guitarra/violao/baixo): "; getline(cin, tipo);
-                cout << "Marca: "; getline(cin, marca);
-                cout << "Preco: "; cin >> preco;
-                cout << "Quantidade: "; cin >> qtd;
-                inserirInstrumento(conn, Instrumento(0, nome, tipo, marca, preco, qtd));
-                break;
-            case 2:
-                cout << "ID do Instrumento a alterar: "; cin >> idBusca;
-                cout << "Novo Nome: "; cin.ignore(); getline(cin, nome);
-                cout << "Novo Tipo (guitarra/violao/baixo): "; getline(cin, tipo);
-                cout << "Nova Marca: "; getline(cin, marca);
-                cout << "Novo Preco: "; cin >> preco;
-                cout << "Nova Quantidade: "; cin >> qtd;
-                alterarInstrumento(conn, Instrumento(idBusca, nome, tipo, marca, preco, qtd));
-                break;
-            case 3:
-                cout << "Digite o nome para buscar: "; cin.ignore(); getline(cin, nome);
-                pesquisarInstrumentoPorNome(conn, nome);
-                break;
-            case 4:
-                cout << "ID do Instrumento a remover: "; cin >> idBusca;
-                removerInstrumento(conn, idBusca);
-                break;
-            case 5:
-                listarInstrumentos(conn);
-                break;
-            case 6:
-                cout << "ID do Instrumento: "; cin >> idBusca;
-                exibirInstrumento(conn, idBusca);
-                break;
-            case 7:
-                relatorioEstoque(conn);
-                break;
-            case 0:
-                cout << "Encerrando o sistema..." << endl;
-                break;
-            default:
-                cout << "Opcao invalida!" << endl;
+                int opcaoAlteracao = -1;
+                switch (opcao) {
+                case 1:
+                        clearTerminal();
+                        cout << "Nome: ";
+                        cin.ignore();
+                        getline(cin, nome);
+                        cout << "Tipo (guitarra/violao/baixo): ";
+                        getline(cin, tipo);
+                        cout << "Marca: ";
+                        getline(cin, marca);
+                        cout << "Preco: ";
+                        cin >> preco;
+                        cout << "Quantidade: ";
+                        cin >> qtd;
+                        inserirInstrumento(conn, Instrumento(0, nome, tipo, marca, preco, qtd));
+                        break;
+                case 2:
+                        clearTerminal();
+                        if (!possuiInstrumentosCadastrados(conn)) {
+                                cout << "Nenhum instrumento cadastrado para alterar." << endl;
+                                break;
+                        }
+                        listarInstrumentos(conn);
+                        cout << "ID do Instrumento a alterar: ";
+                        cin >> idBusca;
+                        clearTerminal();
+                        exibirInstrumento(conn, idBusca);
+                        cout << "\n===== MENU DE EDICAO =====" << endl;
+                        cout << "1. Alterar nome" << endl;
+                        cout << "2. Alterar Tipo" << endl;
+                        cout << "3. Alterar Marca" << endl;
+                        cout << "4. Alterar Preco" << endl;
+                        cout << "5. Alterar Quantidade" << endl;
+                        cout << "0. Sair" << endl;
+                        cout << "\nEscolha uma opcao: ";
+                        cin >> opcaoAlteracao;
+                        cin.ignore(numeric_limits<streamsize>::max(), '\n');
+                        switch (opcaoAlteracao) {
+                        case 1:
+                                clearTerminal();
+                                cout << "Novo Nome: ";
+                                getline(cin, nome);
+                                {
+                                        string query = "UPDATE instrumentos SET nome = '" + nome + "' WHERE id = " + to_string(idBusca) + ";";
+                                        PGresult* res = PQexec(conn, query.c_str());
+                                        checarErro(conn, res, "alterar nome do instrumento");
+                                        PQclear(res);
+                                }
+                                break;
+                        case 2:
+                                clearTerminal();
+                                cout << "Novo Tipo (guitarra/violao/baixo): ";
+                                getline(cin, tipo);
+                                {
+                                        string query = "UPDATE instrumentos SET tipo = '" + tipo + "' WHERE id = " + to_string(idBusca) + ";";
+                                        PGresult* res = PQexec(conn, query.c_str());
+                                        checarErro(conn, res, "alterar tipo do instrumento");
+                                        PQclear(res);
+                                }
+                                break;
+                        case 3:
+                                clearTerminal();
+                                cout << "Nova Marca: ";
+                                getline(cin, marca);
+                                {
+                                        string query = "UPDATE instrumentos SET marca = '" + marca + "' WHERE id = " + to_string(idBusca) + ";";
+                                        PGresult* res = PQexec(conn, query.c_str());
+                                        checarErro(conn, res, "alterar marca do instrumento");
+                                        PQclear(res);
+                                }
+                                break;
+                        case 4:
+                                clearTerminal();
+                                cout << "Novo Preco: ";
+                                cin >> preco;
+                                {
+                                        string query = "UPDATE instrumentos SET preco = " + to_string(preco) + " WHERE id = " + to_string(idBusca) + ";";
+                                        PGresult* res = PQexec(conn, query.c_str());
+                                        checarErro(conn, res, "alterar preco do instrumento");
+                                        PQclear(res);
+                                }
+                                break;
+                        case 5:
+                                clearTerminal();
+                                cout << "Nova Quantidade: ";
+                                cin >> qtd;
+                                {
+                                        string query = "UPDATE instrumentos SET quantidade = " + to_string(qtd) + " WHERE id = " + to_string(idBusca) + ";";
+                                        PGresult* res = PQexec(conn, query.c_str());
+                                        checarErro(conn, res, "alterar quantidade do instrumento");
+                                        PQclear(res);
+                                }
+                                break;
+                        case 0:
+                                clearTerminal();
+                                cout << "Saindo do menu de edicao..." << endl;
+                                break;
+                        default:
+                                clearTerminal();
+                                cout << "Opcao invalida!" << endl;
+                                break;
+                        }
+                        break;
+                case 3:
+                        clearTerminal();
+                        if (!possuiInstrumentosCadastrados(conn)) {
+                                cout << "Nenhum instrumento cadastrado para pesquisar." << endl;
+                                break;
+                        }
+                        cout << "Digite o nome para buscar: ";
+                        cin.ignore();
+                        getline(cin, nome);
+                        pesquisarInstrumentoPorNome(conn, nome);
+                        break;
+                case 4:
+                        clearTerminal();
+                        if (!possuiInstrumentosCadastrados(conn)) {
+                                cout << "Nenhum instrumento cadastrado para remover." << endl;
+                                break;
+                        }
+                        listarInstrumentos(conn);
+                        cout << "ID do Instrumento a remover: ";
+                        cin >> idBusca;
+                        removerInstrumento(conn, idBusca);
+                        break;
+                case 5:
+                        clearTerminal();
+                        if (!possuiInstrumentosCadastrados(conn)) {
+                                cout << "Nenhum instrumento cadastrado para listar." << endl;
+                                break;
+                        }
+                        listarInstrumentos(conn);
+                        break;
+                case 6:
+                        clearTerminal();
+                        if (!possuiInstrumentosCadastrados(conn)) {
+                                cout << "Nenhum instrumento cadastrado para listar." << endl;
+                                break;
+                        }
+                        listarInstrumentos(conn);
+                        cout << "ID do Instrumento: ";
+                        cin >> idBusca;
+                        exibirInstrumento(conn, idBusca);
+                        break;
+                case 7:
+                        clearTerminal();
+                        relatorioEstoque(conn);
+                        break;
+                case 0:
+                        clearTerminal();
+                        cout << "Encerrando o sistema..." << endl;
+                        break;
+                default:
+                        clearTerminal();
+                        cout << "Opcao invalida!" << endl;
+                }
         }
-    }
 }
