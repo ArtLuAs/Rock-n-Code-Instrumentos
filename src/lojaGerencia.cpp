@@ -94,6 +94,22 @@ void Loja::listarInstrumentos(PGconn* conn) {
         PQclear(res);
 }
 
+void Loja::listarInstrumentosSimplificado(PGconn* conn) {
+        PGresult* res = PQexec(conn,
+                               "SELECT id, nome, tipo, marca, preco, quantidade FROM instrumentos ORDER BY id;");
+        checarErro(conn, res, "listar instrumentos");
+
+        int rows = PQntuples(res);
+        for (int i = 0; i < rows; i++) {
+                Instrumento(atoi(PQgetvalue(res, i, 0)), PQgetvalue(res, i, 1),
+                            PQgetvalue(res, i, 2), PQgetvalue(res, i, 3),
+                            atof(PQgetvalue(res, i, 4)),
+                            atoi(PQgetvalue(res, i, 5)))
+                    .exibirSimplificado();
+        }
+        PQclear(res);
+}
+
 void Loja::exibirInstrumento(PGconn* conn, int id) {
         string query = "SELECT id, nome, tipo, marca, preco, quantidade FROM instrumentos WHERE id = " + to_string(id) + ";";
         PGresult* res = PQexec(conn, query.c_str());
@@ -204,6 +220,7 @@ void Loja::menu(PGconn* conn) {
                 cout << endl
                      << "Escolha uma opcao: ";
                 cin >> opcao;
+                cout << endl;
 
                 int idBusca, qtd;
                 string nome, tipo, marca;
@@ -231,13 +248,14 @@ void Loja::menu(PGconn* conn) {
                                 cout << "Nenhum instrumento cadastrado para alterar." << endl;
                                 break;
                         }
-                        listarInstrumentos(conn);
+                        listarInstrumentosSimplificado(conn);
                         cout << "ID do Instrumento a alterar: ";
                         cin >> idBusca;
+                        cout << endl;
 
                         exibirInstrumento(conn, idBusca);
                         cout << "\n===== MENU DE EDICAO =====" << endl;
-                        cout << "1. Alterar nome" << endl;
+                        cout << "1. Alterar Nome" << endl;
                         cout << "2. Alterar Tipo" << endl;
                         cout << "3. Alterar Marca" << endl;
                         cout << "4. Alterar Preco" << endl;
@@ -246,6 +264,7 @@ void Loja::menu(PGconn* conn) {
                         cout << "\nEscolha uma opcao: ";
                         cin >> opcaoAlteracao;
                         cin.ignore(numeric_limits<streamsize>::max(), '\n');
+                        cout << endl;
                         switch (opcaoAlteracao) {
                         case 1:
                                 cout << "Novo Nome: ";
@@ -312,6 +331,7 @@ void Loja::menu(PGconn* conn) {
                         cout << "Digite o nome para buscar: ";
                         cin.ignore();
                         getline(cin, nome);
+                        cout << endl;
                         pesquisarInstrumentoPorNome(conn, nome);
                         break;
                 case 4:
@@ -319,9 +339,10 @@ void Loja::menu(PGconn* conn) {
                                 cout << "Nenhum instrumento cadastrado para remover." << endl;
                                 break;
                         }
-                        listarInstrumentos(conn);
+                        listarInstrumentosSimplificado(conn);
                         cout << "ID do Instrumento a remover: ";
                         cin >> idBusca;
+                        cout << endl;
                         removerInstrumento(conn, idBusca);
                         break;
                 case 5:
@@ -336,9 +357,10 @@ void Loja::menu(PGconn* conn) {
                                 cout << "Nenhum instrumento cadastrado para listar." << endl;
                                 break;
                         }
-                        listarInstrumentos(conn);
+                        listarInstrumentosSimplificado(conn);
                         cout << "ID do Instrumento: ";
                         cin >> idBusca;
+                        cout << endl;
                         exibirInstrumento(conn, idBusca);
                         break;
                 case 7:

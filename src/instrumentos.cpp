@@ -60,3 +60,8 @@ void Instrumento::exibir() const {
         cout << "Preco: " << preco << endl;
         cout << "Quantidade: " << quantidade << endl << endl;
 }
+
+void Instrumento::exibirSimplificado() const {
+        cout << "ID: " << id << endl;
+        cout << "Nome: " << nome << endl << endl;
+}

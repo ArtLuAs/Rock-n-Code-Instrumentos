@@ -34,6 +34,7 @@ public:
     void setQuantidade(int quantidade);
 
     void exibir() const;
+    void exibirSimplificado() const;
 };
 
 #endif

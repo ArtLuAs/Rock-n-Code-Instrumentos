@@ -26,6 +26,7 @@ public:
         void pesquisarInstrumentoPorNome(PGconn* conn, std::string nomeBusca);
         void removerInstrumento(PGconn* conn, int id);
         void listarInstrumentos(PGconn* conn);
+        void listarInstrumentosSimplificado(PGconn* conn);
         void exibirInstrumento(PGconn* conn, int id);
         bool possuiInstrumentosCadastrados(PGconn* conn);
 
