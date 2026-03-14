@@ -58,5 +58,5 @@ void Instrumento::exibir() const {
         cout << "Tipo: " << tipo << endl;
         cout << "Marca: " << marca << endl;
         cout << "Preco: " << preco << endl;
-        cout << "Quantidade: " << quantidade << endl;
+        cout << "Quantidade: " << quantidade << endl << endl;
 }

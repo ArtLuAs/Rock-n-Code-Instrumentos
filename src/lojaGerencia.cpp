@@ -1,4 +1,6 @@
 #include "../headers/lojaGerencia.hpp"
+#include <algorithm>
+#include <cctype>
 #include <cstdlib>
 #include <iostream>
 #include <limits>
@@ -161,10 +163,44 @@ static void clearTerminal() {
 #endif
 }
 
+static string normalizarTipo(string tipo) {
+        size_t inicio = tipo.find_first_not_of(" \t\n\r");
+        if (inicio == string::npos) {
+                return "";
+        }
+
+        size_t fim = tipo.find_last_not_of(" \t\n\r");
+        tipo = tipo.substr(inicio, fim - inicio + 1);
+
+        transform(tipo.begin(), tipo.end(), tipo.begin(),
+                  [](unsigned char c) { return static_cast<char>(tolower(c)); });
+        return tipo;
+}
+
+static bool tipoValido(const string& tipo) {
+        return tipo == "guitarra" || tipo == "violao" || tipo == "baixo";
+}
+
+static string solicitarTipoValido() {
+        string tipo;
+        while (true) {
+                cout << "Tipo (guitarra/violao/baixo): ";
+                getline(cin, tipo);
+
+                tipo = normalizarTipo(tipo);
+                if (tipoValido(tipo)) {
+                        return tipo;
+                }
+
+                cout << "Tipo invalido. Digite apenas: guitarra, violao ou baixo." << endl;
+        }
+}
+
 void Loja::menu(PGconn* conn) {
         int opcao = -1;
         while (opcao != 0) {
-                cout << "\n===== MENU DE GERENCIAMENTO =====" << endl;
+                cout << endl
+                     << "===== MENU DE GERENCIAMENTO =====" << endl;
                 cout << "1. Inserir Instrumento" << endl;
                 cout << "2. Alterar Instrumento" << endl;
                 cout << "3. Pesquisar Instrumento por Nome" << endl;
@@ -173,7 +209,8 @@ void Loja::menu(PGconn* conn) {
                 cout << "6. Exibir um Instrumento (por ID)" << endl;
                 cout << "7. Relatorio de Estoque" << endl;
                 cout << "0. Sair" << endl;
-                cout << "\nEscolha uma opcao: ";
+                cout << endl
+                     << "Escolha uma opcao: ";
                 cin >> opcao;
 
                 int idBusca, qtd;
@@ -183,12 +220,11 @@ void Loja::menu(PGconn* conn) {
                 int opcaoAlteracao = -1;
                 switch (opcao) {
                 case 1:
-                        clearTerminal();
+
                         cout << "Nome: ";
                         cin.ignore();
                         getline(cin, nome);
-                        cout << "Tipo (guitarra/violao/baixo): ";
-                        getline(cin, tipo);
+                        tipo = solicitarTipoValido();
                         cout << "Marca: ";
                         getline(cin, marca);
                         cout << "Preco: ";
@@ -198,7 +234,7 @@ void Loja::menu(PGconn* conn) {
                         inserirInstrumento(conn, Instrumento(0, nome, tipo, marca, preco, qtd));
                         break;
                 case 2:
-                        clearTerminal();
+
                         if (!possuiInstrumentosCadastrados(conn)) {
                                 cout << "Nenhum instrumento cadastrado para alterar." << endl;
                                 break;
@@ -206,7 +242,7 @@ void Loja::menu(PGconn* conn) {
                         listarInstrumentos(conn);
                         cout << "ID do Instrumento a alterar: ";
                         cin >> idBusca;
-                        clearTerminal();
+
                         exibirInstrumento(conn, idBusca);
                         cout << "\n===== MENU DE EDICAO =====" << endl;
                         cout << "1. Alterar nome" << endl;
@@ -220,7 +256,6 @@ void Loja::menu(PGconn* conn) {
                         cin.ignore(numeric_limits<streamsize>::max(), '\n');
                         switch (opcaoAlteracao) {
                         case 1:
-                                clearTerminal();
                                 cout << "Novo Nome: ";
                                 getline(cin, nome);
                                 {
@@ -231,9 +266,7 @@ void Loja::menu(PGconn* conn) {
                                 }
                                 break;
                         case 2:
-                                clearTerminal();
-                                cout << "Novo Tipo (guitarra/violao/baixo): ";
-                                getline(cin, tipo);
+                                tipo = solicitarTipoValido();
                                 {
                                         string query = "UPDATE instrumentos SET tipo = '" + tipo + "' WHERE id = " + to_string(idBusca) + ";";
                                         PGresult* res = PQexec(conn, query.c_str());
@@ -242,7 +275,6 @@ void Loja::menu(PGconn* conn) {
                                 }
                                 break;
                         case 3:
-                                clearTerminal();
                                 cout << "Nova Marca: ";
                                 getline(cin, marca);
                                 {
@@ -253,7 +285,6 @@ void Loja::menu(PGconn* conn) {
                                 }
                                 break;
                         case 4:
-                                clearTerminal();
                                 cout << "Novo Preco: ";
                                 cin >> preco;
                                 {
@@ -264,7 +295,6 @@ void Loja::menu(PGconn* conn) {
                                 }
                                 break;
                         case 5:
-                                clearTerminal();
                                 cout << "Nova Quantidade: ";
                                 cin >> qtd;
                                 {
@@ -275,17 +305,14 @@ void Loja::menu(PGconn* conn) {
                                 }
                                 break;
                         case 0:
-                                clearTerminal();
                                 cout << "Saindo do menu de edicao..." << endl;
                                 break;
                         default:
-                                clearTerminal();
                                 cout << "Opcao invalida!" << endl;
                                 break;
                         }
                         break;
                 case 3:
-                        clearTerminal();
                         if (!possuiInstrumentosCadastrados(conn)) {
                                 cout << "Nenhum instrumento cadastrado para pesquisar." << endl;
                                 break;
@@ -296,7 +323,6 @@ void Loja::menu(PGconn* conn) {
                         pesquisarInstrumentoPorNome(conn, nome);
                         break;
                 case 4:
-                        clearTerminal();
                         if (!possuiInstrumentosCadastrados(conn)) {
                                 cout << "Nenhum instrumento cadastrado para remover." << endl;
                                 break;
@@ -307,7 +333,6 @@ void Loja::menu(PGconn* conn) {
                         removerInstrumento(conn, idBusca);
                         break;
                 case 5:
-                        clearTerminal();
                         if (!possuiInstrumentosCadastrados(conn)) {
                                 cout << "Nenhum instrumento cadastrado para listar." << endl;
                                 break;
@@ -315,7 +340,6 @@ void Loja::menu(PGconn* conn) {
                         listarInstrumentos(conn);
                         break;
                 case 6:
-                        clearTerminal();
                         if (!possuiInstrumentosCadastrados(conn)) {
                                 cout << "Nenhum instrumento cadastrado para listar." << endl;
                                 break;
@@ -326,15 +350,12 @@ void Loja::menu(PGconn* conn) {
                         exibirInstrumento(conn, idBusca);
                         break;
                 case 7:
-                        clearTerminal();
                         relatorioEstoque(conn);
                         break;
                 case 0:
-                        clearTerminal();
                         cout << "Encerrando o sistema..." << endl;
                         break;
                 default:
-                        clearTerminal();
                         cout << "Opcao invalida!" << endl;
                 }
         }
