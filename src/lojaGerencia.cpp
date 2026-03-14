@@ -155,14 +155,6 @@ void Loja::exibir() {
              << endl;
 }
 
-static void clearTerminal() {
-#ifdef _WIN32
-        system("cls");
-#else
-        system("clear");
-#endif
-}
-
 static string normalizarTipo(string tipo) {
         size_t inicio = tipo.find_first_not_of(" \t\n\r");
         if (inicio == string::npos) {
