@@ -55,7 +55,7 @@ void Loja::alterarInstrumento(PGconn* conn, Instrumento inst) {
 }
 
 void Loja::pesquisarInstrumentoPorNome(PGconn* conn, string nomeBusca) {
-        string query = "SELECT id, nome, tipo, marca, preco, quantidade FROM instrumentos WHERE nome ILIKE '%" + nomeBusca + "%';";
+        string query = "SELECT id, nome, tipo, marca, preco, quantidade FROM instrumentos WHERE nome ILIKE '%" + nomeBusca + "%' OR tipo ILIKE '%" + nomeBusca + "%' OR marca ILIKE '%" + nomeBusca + "%';";
         PGresult* res = PQexec(conn, query.c_str());
         checarErro(conn, res, "pesquisar instrumento");
 
@@ -211,7 +211,7 @@ void Loja::menu(PGconn* conn) {
                      << "===== MENU DE GERENCIAMENTO =====" << endl;
                 cout << "1. Inserir Instrumento" << endl;
                 cout << "2. Alterar Instrumento" << endl;
-                cout << "3. Pesquisar Instrumento por Nome" << endl;
+                cout << "3. Pesquisar Instrumento" << endl;
                 cout << "4. Remover Instrumento" << endl;
                 cout << "5. Listar Todos os Instrumentos" << endl;
                 cout << "6. Exibir um Instrumento (por ID)" << endl;
@@ -328,7 +328,7 @@ void Loja::menu(PGconn* conn) {
                                 cout << "Nenhum instrumento cadastrado para pesquisar." << endl;
                                 break;
                         }
-                        cout << "Digite o nome para buscar: ";
+                        cout << "Digite a query para buscar: ";
                         cin.ignore();
                         getline(cin, nome);
                         cout << endl;
