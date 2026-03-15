@@ -23,7 +23,7 @@ public:
         // CRUD
         void inserirInstrumento(PGconn* conn, Instrumento inst);
         void alterarInstrumento(PGconn* conn, Instrumento inst);
-        void pesquisarInstrumentoPorNome(PGconn* conn, std::string nomeBusca);
+        void pesquisarInstrumento(PGconn* conn, std::string nomeBusca);
         void removerInstrumento(PGconn* conn, int id);
         void listarInstrumentos(PGconn* conn);
         void listarInstrumentosSimplificado(PGconn* conn);
