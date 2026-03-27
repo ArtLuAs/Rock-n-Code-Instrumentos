@@ -35,28 +35,41 @@ void Loja::checarErro(PGconn* conn, PGresult* res, const string& operacao) {
 // ===== IMPLEMENTAÇÃO DO CRUD =====
 
 void Loja::inserirInstrumento(PGconn* conn, Instrumento inst) {
-        string query = "INSERT INTO instrumentos (nome, tipo, marca, preco, quantidade) VALUES ('" + inst.getNome() + "', '" + inst.getTipo() + "', '" + inst.getMarca() + "', " +
-            to_string(inst.getPreco()) + ", " + to_string(inst.getQuantidade()) + ");";
-        PGresult* res = PQexec(conn, query.c_str());
+        string precoStr = to_string(inst.getPreco());
+        string qtdStr = to_string(inst.getQuantidade());
+        const char* params[5] = {
+            inst.getNome().c_str(), inst.getTipo().c_str(),
+            inst.getMarca().c_str(), precoStr.c_str(), qtdStr.c_str()};
+        PGresult* res = PQexecParams(conn,
+                                     "INSERT INTO instrumentos (nome, tipo, marca, preco, quantidade) VALUES ($1,$2,$3,$4,$5)",
+                                     5, nullptr, params, nullptr, nullptr, 0);
         checarErro(conn, res, "inserir instrumento");
         PQclear(res);
 }
 
 void Loja::alterarInstrumento(PGconn* conn, Instrumento inst) {
-        string query = "UPDATE instrumentos SET nome = '" + inst.getNome() +
-            "', tipo = '" + inst.getTipo() +
-            "', marca = '" + inst.getMarca() +
-            "', preco = " + to_string(inst.getPreco()) +
-            ", quantidade = " + to_string(inst.getQuantidade()) +
-            " WHERE id = " + to_string(inst.getId()) + ";";
-        PGresult* res = PQexec(conn, query.c_str());
+        string idStr = to_string(inst.getId());
+        string precoStr = to_string(inst.getPreco());
+        string qtdStr = to_string(inst.getQuantidade());
+        const char* p[6] = {
+            inst.getNome().c_str(), inst.getTipo().c_str(), inst.getMarca().c_str(),
+            precoStr.c_str(), qtdStr.c_str(), idStr.c_str()};
+        PGresult* res = PQexecParams(conn,
+                                     "UPDATE instrumentos SET nome=$1, tipo=$2, marca=$3, preco=$4, quantidade=$5 WHERE id=$6",
+                                     6, nullptr, p, nullptr, nullptr, 0);
         checarErro(conn, res, "alterar instrumento");
         PQclear(res);
 }
 
 void Loja::pesquisarInstrumento(PGconn* conn, string nomeBusca) {
-        string query = "SELECT id, nome, tipo, marca, preco, quantidade FROM instrumentos WHERE nome ILIKE '%" + nomeBusca + "%' OR tipo ILIKE '%" + nomeBusca + "%' OR marca ILIKE '%" + nomeBusca + "%';";
-        PGresult* res = PQexec(conn, query.c_str());
+        // O ILIKE com wildcards deve ser montado no lado C++,
+        // mas o valor é passado como parâmetro — nunca concatenado no SQL.
+        string termoBusca = "%" + nomeBusca + "%";
+        const char* params[1] = {termoBusca.c_str()};
+        PGresult* res = PQexecParams(conn,
+                                     "SELECT id, nome, tipo, marca, preco, quantidade FROM instrumentos "
+                                     "WHERE nome ILIKE $1 OR tipo ILIKE $1 OR marca ILIKE $1",
+                                     1, nullptr, params, nullptr, nullptr, 0);
         checarErro(conn, res, "pesquisar instrumento");
 
         int rows = PQntuples(res);
@@ -71,9 +84,11 @@ void Loja::pesquisarInstrumento(PGconn* conn, string nomeBusca) {
 }
 
 void Loja::removerInstrumento(PGconn* conn, int id) {
-
-        string query = "DELETE FROM instrumentos WHERE id = " + to_string(id) + ";";
-        PGresult* res = PQexec(conn, query.c_str());
+        string idStr = to_string(id);
+        const char* p[1] = {idStr.c_str()};
+        PGresult* res = PQexecParams(conn,
+                                     "DELETE FROM instrumentos WHERE id=$1",
+                                     1, nullptr, p, nullptr, nullptr, 0);
         checarErro(conn, res, "remover instrumento");
         PQclear(res);
 }
@@ -111,8 +126,11 @@ void Loja::listarInstrumentosSimplificado(PGconn* conn) {
 }
 
 void Loja::exibirInstrumento(PGconn* conn, int id) {
-        string query = "SELECT id, nome, tipo, marca, preco, quantidade FROM instrumentos WHERE id = " + to_string(id) + ";";
-        PGresult* res = PQexec(conn, query.c_str());
+        string idStr = to_string(id);
+        const char* p[1] = {idStr.c_str()};
+        PGresult* res = PQexecParams(conn,
+                                     "SELECT id, nome, tipo, marca, preco, quantidade FROM instrumentos WHERE id=$1",
+                                     1, nullptr, p, nullptr, nullptr, 0);
         checarErro(conn, res, "exibir instrumento");
 
         if (PQntuples(res) > 0) {
@@ -270,8 +288,11 @@ void Loja::menu(PGconn* conn) {
                                 cout << "Novo Nome: ";
                                 getline(cin, nome);
                                 {
-                                        string query = "UPDATE instrumentos SET nome = '" + nome + "' WHERE id = " + to_string(idBusca) + ";";
-                                        PGresult* res = PQexec(conn, query.c_str());
+                                        string idStr = to_string(idBusca);
+                                        const char* p[2] = {nome.c_str(), idStr.c_str()};
+                                        PGresult* res = PQexecParams(conn,
+                                                                     "UPDATE instrumentos SET nome=$1 WHERE id=$2",
+                                                                     2, nullptr, p, nullptr, nullptr, 0);
                                         checarErro(conn, res, "alterar nome do instrumento");
                                         PQclear(res);
                                 }
@@ -279,8 +300,11 @@ void Loja::menu(PGconn* conn) {
                         case 2:
                                 tipo = solicitarTipoValido();
                                 {
-                                        string query = "UPDATE instrumentos SET tipo = '" + tipo + "' WHERE id = " + to_string(idBusca) + ";";
-                                        PGresult* res = PQexec(conn, query.c_str());
+                                        string idStr = to_string(idBusca);
+                                        const char* p[2] = {tipo.c_str(), idStr.c_str()};
+                                        PGresult* res = PQexecParams(conn,
+                                                                     "UPDATE instrumentos SET tipo=$1 WHERE id=$2",
+                                                                     2, nullptr, p, nullptr, nullptr, 0);
                                         checarErro(conn, res, "alterar tipo do instrumento");
                                         PQclear(res);
                                 }
@@ -289,8 +313,11 @@ void Loja::menu(PGconn* conn) {
                                 cout << "Nova Marca: ";
                                 getline(cin, marca);
                                 {
-                                        string query = "UPDATE instrumentos SET marca = '" + marca + "' WHERE id = " + to_string(idBusca) + ";";
-                                        PGresult* res = PQexec(conn, query.c_str());
+                                        string idStr = to_string(idBusca);
+                                        const char* p[2] = {marca.c_str(), idStr.c_str()};
+                                        PGresult* res = PQexecParams(conn,
+                                                                     "UPDATE instrumentos SET marca=$1 WHERE id=$2",
+                                                                     2, nullptr, p, nullptr, nullptr, 0);
                                         checarErro(conn, res, "alterar marca do instrumento");
                                         PQclear(res);
                                 }
@@ -299,8 +326,12 @@ void Loja::menu(PGconn* conn) {
                                 cout << "Novo Preco: ";
                                 cin >> preco;
                                 {
-                                        string query = "UPDATE instrumentos SET preco = " + to_string(preco) + " WHERE id = " + to_string(idBusca) + ";";
-                                        PGresult* res = PQexec(conn, query.c_str());
+                                        string precoStr = to_string(preco); // string com vida útil garantida
+                                        string idStr = to_string(idBusca);
+                                        const char* p[2] = {precoStr.c_str(), idStr.c_str()};
+                                        PGresult* res = PQexecParams(conn,
+                                                                     "UPDATE instrumentos SET preco=$1 WHERE id=$2",
+                                                                     2, nullptr, p, nullptr, nullptr, 0);
                                         checarErro(conn, res, "alterar preco do instrumento");
                                         PQclear(res);
                                 }
@@ -309,8 +340,12 @@ void Loja::menu(PGconn* conn) {
                                 cout << "Nova Quantidade: ";
                                 cin >> qtd;
                                 {
-                                        string query = "UPDATE instrumentos SET quantidade = " + to_string(qtd) + " WHERE id = " + to_string(idBusca) + ";";
-                                        PGresult* res = PQexec(conn, query.c_str());
+                                        string qtdStr = to_string(qtd); // idem
+                                        string idStr = to_string(idBusca);
+                                        const char* p[2] = {qtdStr.c_str(), idStr.c_str()};
+                                        PGresult* res = PQexecParams(conn,
+                                                                     "UPDATE instrumentos SET quantidade=$1 WHERE id=$2",
+                                                                     2, nullptr, p, nullptr, nullptr, 0);
                                         checarErro(conn, res, "alterar quantidade do instrumento");
                                         PQclear(res);
                                 }
