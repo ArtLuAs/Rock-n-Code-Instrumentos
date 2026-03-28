@@ -11,12 +11,16 @@ CREATE DATABASE loja_musical;
 -- 3. Dar permissões ao usuário no banco
 GRANT ALL PRIVILEGES ON DATABASE loja_musical TO lojamusical_user;
 
--- 4. Conectar no banco (comando específico do psql)
+-- 4. Conectar no banco
 \c loja_musical;
+
+-- ===================== ENUMs =====================
+CREATE TYPE forma_pgto AS ENUM ('dinheiro', 'cartao_credito', 'cartao_debito', 'pix');
+CREATE TYPE status_pgto AS ENUM ('pendente', 'confirmado', 'recusado');
 
 -- ===================== TABELA: INSTRUMENTOS =====================
 CREATE TABLE instrumentos (
-    id                SERIAL PRIMARY KEY,
+    id                SERIAL        PRIMARY KEY,
     nome              VARCHAR(100)  NOT NULL,
     tipo              VARCHAR(50)   NOT NULL CHECK (tipo IN ('guitarra', 'violao', 'baixo')),
     marca             VARCHAR(100)  NOT NULL,
@@ -28,63 +32,184 @@ CREATE TABLE instrumentos (
 
 -- ===================== TABELA: CLIENTES =====================
 CREATE TABLE clientes (
-    id                 SERIAL PRIMARY KEY,
-    nome               VARCHAR(100) NOT NULL,
-    cpf                VARCHAR(14)  NOT NULL UNIQUE,
-    telefone           VARCHAR(20),
-    email              VARCHAR(100),
-    sexo               VARCHAR(20)  CHECK (sexo IN ('Masculino', 'Feminino', 'Outro')),
-    torce_flamengo     BOOLEAN      NOT NULL DEFAULT FALSE,
-    assiste_one_piece  BOOLEAN      NOT NULL DEFAULT FALSE,
-    cidade             VARCHAR(100)
+    id                SERIAL       PRIMARY KEY,
+    nome              VARCHAR(100) NOT NULL,
+    cpf               VARCHAR(14)  NOT NULL UNIQUE,
+    telefone          VARCHAR(20),
+    email             VARCHAR(100),
+    sexo              VARCHAR(20)  CHECK (sexo IN ('Masculino', 'Feminino', 'Outro')),
+    torce_flamengo    BOOLEAN      NOT NULL DEFAULT FALSE,
+    assiste_one_piece BOOLEAN      NOT NULL DEFAULT FALSE,
+    cidade            VARCHAR(100)
 );
 
--- ===================== TABELA: VENDAS =====================
-CREATE TABLE vendas (
-    id          SERIAL PRIMARY KEY,
-    cliente_id  INTEGER       NOT NULL REFERENCES clientes(id),
-    valor_total NUMERIC(10,2) NOT NULL DEFAULT 0.00,
-    data        DATE          NOT NULL
+-- ===================== TABELA: FUNCIONARIOS =====================
+CREATE TABLE funcionarios (
+    id       SERIAL       PRIMARY KEY,
+    nome     VARCHAR(100) NOT NULL,
+    cpf      VARCHAR(14)  NOT NULL UNIQUE,
+    telefone VARCHAR(20),
+    email    VARCHAR(100),
+    cargo    VARCHAR(100) NOT NULL DEFAULT 'vendedor'
 );
 
--- ===================== TABELA: ITENS DA VENDA =====================
-CREATE TABLE itens_venda (
+-- ===================== TABELA: PEDIDOS =====================
+CREATE TABLE pedidos (
+    id                SERIAL        PRIMARY KEY,
+    cliente_id        INTEGER       NOT NULL REFERENCES clientes(id)     ON DELETE RESTRICT,
+    funcionario_id    INTEGER       NOT NULL REFERENCES funcionarios(id) ON DELETE RESTRICT,
+    data              DATE          NOT NULL DEFAULT CURRENT_DATE,
+    forma_pagamento   forma_pgto    NOT NULL,
+    status_pagamento  status_pgto   NOT NULL DEFAULT 'pendente',
+    desconto          NUMERIC(5,2)  NOT NULL DEFAULT 0.00 CHECK (desconto >= 0 AND desconto <= 100),
+    total             NUMERIC(10,2) NOT NULL DEFAULT 0.00 CHECK (total >= 0)
+);
+
+-- ===================== TABELA: ITENS DO PEDIDO =====================
+CREATE TABLE itens_pedido (
     id             SERIAL        PRIMARY KEY,
-    venda_id       INTEGER       NOT NULL REFERENCES vendas(id) ON DELETE CASCADE,
-    instrumento_id INTEGER       NOT NULL REFERENCES instrumentos(id),
+    pedido_id      INTEGER       NOT NULL REFERENCES pedidos(id)      ON DELETE CASCADE,
+    instrumento_id INTEGER       NOT NULL REFERENCES instrumentos(id) ON DELETE RESTRICT,
     quantidade     INTEGER       NOT NULL CHECK (quantidade > 0),
     preco_unitario NUMERIC(10,2) NOT NULL CHECK (preco_unitario >= 0)
 );
 
 -- ===================== ÍNDICES =====================
-CREATE INDEX idx_instrumentos_nome       ON instrumentos(nome);
-CREATE INDEX idx_instrumentos_categoria  ON instrumentos(categoria);
-CREATE INDEX idx_instrumentos_mari       ON instrumentos(fabricado_em_mari);
-CREATE INDEX idx_clientes_nome           ON clientes(nome);
-CREATE INDEX idx_clientes_cidade         ON clientes(cidade);
-CREATE INDEX idx_vendas_cliente          ON vendas(cliente_id);
-CREATE INDEX idx_vendas_data             ON vendas(data);
-CREATE INDEX idx_itens_venda_venda       ON itens_venda(venda_id);
+CREATE INDEX idx_instrumentos_nome      ON instrumentos(nome);
+CREATE INDEX idx_instrumentos_categoria ON instrumentos(categoria);
+CREATE INDEX idx_instrumentos_mari      ON instrumentos(fabricado_em_mari);
+CREATE INDEX idx_clientes_nome          ON clientes(nome);
+CREATE INDEX idx_clientes_cidade        ON clientes(cidade);
+CREATE INDEX idx_funcionarios_nome      ON funcionarios(nome);
+CREATE INDEX idx_pedidos_cliente        ON pedidos(cliente_id);
+CREATE INDEX idx_pedidos_funcionario    ON pedidos(funcionario_id);
+CREATE INDEX idx_pedidos_data           ON pedidos(data);
+CREATE INDEX idx_itens_pedido_pedido    ON itens_pedido(pedido_id);
+
+-- ===================== VIEW: VENDAS POR VENDEDOR/MÊS =====================
+CREATE VIEW vw_vendas_por_vendedor_mes AS
+SELECT
+    f.id                              AS funcionario_id,
+    f.nome                            AS vendedor,
+    DATE_TRUNC('month', p.data)::DATE AS mes,
+    COUNT(p.id)                       AS total_pedidos,
+    SUM(p.total)                      AS total_vendido
+FROM pedidos p
+JOIN funcionarios f ON f.id = p.funcionario_id
+WHERE p.status_pagamento = 'confirmado'
+GROUP BY f.id, f.nome, DATE_TRUNC('month', p.data)
+ORDER BY mes DESC, total_vendido DESC;
+
+-- ===================== STORED PROCEDURE: EFETUAR COMPRA =====================
+CREATE OR REPLACE PROCEDURE efetuar_compra(
+    p_cliente_id     INTEGER,
+    p_funcionario_id INTEGER,
+    p_forma_pgto     forma_pgto,
+    p_instrumentos   INTEGER[],   -- array de instrumento_id
+    p_quantidades    INTEGER[],   -- array de quantidades (mesmo índice)
+    OUT p_pedido_id  INTEGER
+)
+LANGUAGE plpgsql
+AS $$
+DECLARE
+    v_desconto      NUMERIC(5,2)  := 0.00;
+    v_total         NUMERIC(10,2) := 0.00;
+    v_preco         NUMERIC(10,2);
+    v_estoque       INTEGER;
+    v_subtotal      NUMERIC(10,2);
+    i               INTEGER;
+    v_torce_flam    BOOLEAN;
+    v_one_piece     BOOLEAN;
+    v_cidade        VARCHAR(100);
+BEGIN
+    -- Verificar se cliente existe
+    IF NOT EXISTS (SELECT 1 FROM clientes WHERE id = p_cliente_id) THEN
+        RAISE EXCEPTION 'Cliente % não encontrado.', p_cliente_id;
+    END IF;
+
+    -- Verificar se funcionário existe
+    IF NOT EXISTS (SELECT 1 FROM funcionarios WHERE id = p_funcionario_id) THEN
+        RAISE EXCEPTION 'Funcionário % não encontrado.', p_funcionario_id;
+    END IF;
+
+    -- Calcular desconto do cliente
+    SELECT torce_flamengo, assiste_one_piece, LOWER(COALESCE(cidade, ''))
+    INTO v_torce_flam, v_one_piece, v_cidade
+    FROM clientes WHERE id = p_cliente_id;
+
+    IF v_torce_flam OR v_one_piece OR v_cidade = 'sousa' THEN
+        v_desconto := 10.00;
+    END IF;
+
+    -- Validar estoque e calcular total
+    FOR i IN 1 .. array_length(p_instrumentos, 1) LOOP
+        SELECT preco, quantidade
+        INTO v_preco, v_estoque
+        FROM instrumentos WHERE id = p_instrumentos[i];
+
+        IF NOT FOUND THEN
+            RAISE EXCEPTION 'Instrumento % não encontrado.', p_instrumentos[i];
+        END IF;
+
+        IF v_estoque < p_quantidades[i] THEN
+            RAISE EXCEPTION 'Estoque insuficiente para instrumento % (disponível: %).', p_instrumentos[i], v_estoque;
+        END IF;
+
+        v_subtotal := v_preco * p_quantidades[i];
+        v_total    := v_total + v_subtotal;
+    END LOOP;
+
+    -- Aplicar desconto
+    v_total := v_total * (1.0 - v_desconto / 100.0);
+
+    -- Criar pedido
+    INSERT INTO pedidos (cliente_id, funcionario_id, forma_pagamento, status_pagamento, desconto, total)
+    VALUES (p_cliente_id, p_funcionario_id, p_forma_pgto, 'pendente', v_desconto, v_total)
+    RETURNING id INTO p_pedido_id;
+
+    -- Inserir itens e baixar estoque
+    FOR i IN 1 .. array_length(p_instrumentos, 1) LOOP
+        SELECT preco INTO v_preco FROM instrumentos WHERE id = p_instrumentos[i];
+
+        INSERT INTO itens_pedido (pedido_id, instrumento_id, quantidade, preco_unitario)
+        VALUES (p_pedido_id, p_instrumentos[i], p_quantidades[i], v_preco);
+
+        UPDATE instrumentos
+        SET quantidade = quantidade - p_quantidades[i]
+        WHERE id = p_instrumentos[i];
+    END LOOP;
+END;
+$$;
 
 -- ===================== PERMISSÕES =====================
 GRANT ALL ON SCHEMA public TO lojamusical_user;
-GRANT ALL PRIVILEGES ON TABLE instrumentos TO lojamusical_user;
-GRANT ALL PRIVILEGES ON TABLE clientes     TO lojamusical_user;
-GRANT ALL PRIVILEGES ON TABLE vendas       TO lojamusical_user;
-GRANT ALL PRIVILEGES ON TABLE itens_venda  TO lojamusical_user;
+GRANT ALL PRIVILEGES ON TABLE instrumentos  TO lojamusical_user;
+GRANT ALL PRIVILEGES ON TABLE clientes      TO lojamusical_user;
+GRANT ALL PRIVILEGES ON TABLE funcionarios  TO lojamusical_user;
+GRANT ALL PRIVILEGES ON TABLE pedidos       TO lojamusical_user;
+GRANT ALL PRIVILEGES ON TABLE itens_pedido  TO lojamusical_user;
+GRANT EXECUTE ON PROCEDURE efetuar_compra   TO lojamusical_user;
 
 GRANT USAGE, SELECT ON SEQUENCE instrumentos_id_seq TO lojamusical_user;
 GRANT USAGE, SELECT ON SEQUENCE clientes_id_seq     TO lojamusical_user;
-GRANT USAGE, SELECT ON SEQUENCE vendas_id_seq       TO lojamusical_user;
-GRANT USAGE, SELECT ON SEQUENCE itens_venda_id_seq  TO lojamusical_user;
+GRANT USAGE, SELECT ON SEQUENCE funcionarios_id_seq TO lojamusical_user;
+GRANT USAGE, SELECT ON SEQUENCE pedidos_id_seq      TO lojamusical_user;
+GRANT USAGE, SELECT ON SEQUENCE itens_pedido_id_seq TO lojamusical_user;
 
 -- ===================== SCRIPT DE MIGRAÇÃO (banco já existente) =====================
 -- Execute apenas se o banco já estava criado sem os novos campos:
+--
+-- CREATE TYPE forma_pgto  AS ENUM ('dinheiro','cartao_credito','cartao_debito','pix');
+-- CREATE TYPE status_pgto AS ENUM ('pendente','confirmado','recusado');
+--
 -- ALTER TABLE instrumentos
---     ADD COLUMN IF NOT EXISTS categoria VARCHAR(100) NOT NULL DEFAULT 'outros',
---     ADD COLUMN IF NOT EXISTS fabricado_em_mari BOOLEAN NOT NULL DEFAULT FALSE;
+--     ADD COLUMN IF NOT EXISTS categoria         VARCHAR(100) NOT NULL DEFAULT 'outros',
+--     ADD COLUMN IF NOT EXISTS fabricado_em_mari BOOLEAN      NOT NULL DEFAULT FALSE;
 --
 -- ALTER TABLE clientes
 --     ADD COLUMN IF NOT EXISTS torce_flamengo    BOOLEAN NOT NULL DEFAULT FALSE,
 --     ADD COLUMN IF NOT EXISTS assiste_one_piece BOOLEAN NOT NULL DEFAULT FALSE,
 --     ADD COLUMN IF NOT EXISTS cidade            VARCHAR(100);
+--
+-- DROP TABLE IF EXISTS itens_venda;
+-- DROP TABLE IF EXISTS vendas;
