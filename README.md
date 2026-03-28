@@ -161,6 +161,12 @@ Após isso, certifique-se de instalar as dependências `PostgreSQL` no terminal 
 pacman -S mingw-w64-ucrt-x86_64-postgresql
 ```
 
+Também é necessário ter a base de dados inicializada:
+
+```sh
+psql -U postgres -f ./sql/loja_musical.sql
+```
+
 Utilizando `g++` para compilar:
 
 ```sh
