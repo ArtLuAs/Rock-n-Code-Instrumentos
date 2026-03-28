@@ -1,9 +1,12 @@
 #include "../headers/gerenciaVendas.hpp"
 #include "../headers/gerenciaInstrumentos.hpp"
 #include "../headers/gerenciaClientes.hpp"
+#include "../headers/gerenciaFuncionarios.hpp"
 #include <cstdlib>
 #include <iostream>
 #include <limits>
+#include <sstream>
+#include <vector>
 
 using namespace std;
 
@@ -14,375 +17,362 @@ void GerenciaVendas::checarErro(PGconn* conn, PGresult* res, const string& opera
         cout << "Erro ao " << operacao << ": " << PQerrorMessage(conn) << endl;
 }
 
-// ===================== CRUD VENDA =====================
-
-int GerenciaVendas::inserir(PGconn* conn, Venda venda) {
-    string cliStr = to_string(venda.getClienteId());
-    string valStr = to_string(venda.getValorTotal());
-    const char* p[3] = {cliStr.c_str(), valStr.c_str(), venda.getData().c_str()};
-    PGresult* res = PQexecParams(conn,
-        "INSERT INTO vendas (cliente_id, valor_total, data) VALUES ($1,$2,$3) RETURNING id",
-        3, nullptr, p, nullptr, nullptr, 0);
-    checarErro(conn, res, "inserir venda");
-    int novoId = 0;
-    if (PQresultStatus(res) == PGRES_TUPLES_OK && PQntuples(res) > 0)
-        novoId = atoi(PQgetvalue(res, 0, 0));
-    PQclear(res);
-    return novoId;
-}
-
-void GerenciaVendas::alterar(PGconn* conn, Venda venda) {
-    string idStr  = to_string(venda.getId());
-    string valStr = to_string(venda.getValorTotal());
-    const char* p[3] = {valStr.c_str(), venda.getData().c_str(), idStr.c_str()};
-    PGresult* res = PQexecParams(conn,
-        "UPDATE vendas SET valor_total=$1, data=$2 WHERE id=$3",
-        3, nullptr, p, nullptr, nullptr, 0);
-    checarErro(conn, res, "alterar venda");
-    PQclear(res);
-}
-
-void GerenciaVendas::pesquisar(PGconn* conn, string nomeCliente) {
-    string termo = "%" + nomeCliente + "%";
-    const char* p[1] = {termo.c_str()};
-    PGresult* res = PQexecParams(conn,
-        "SELECT v.id, v.cliente_id, v.valor_total, v.data "
-        "FROM vendas v JOIN clientes c ON v.cliente_id = c.id "
-        "WHERE c.nome ILIKE $1 ORDER BY v.id",
-        1, nullptr, p, nullptr, nullptr, 0);
-    checarErro(conn, res, "pesquisar venda");
-    int rows = PQntuples(res);
-    if (rows == 0) cout << "Nenhuma venda encontrada." << endl;
-    for (int i = 0; i < rows; i++) {
-        int vendaId = atoi(PQgetvalue(res, i, 0));
-        Venda v(vendaId, atoi(PQgetvalue(res, i, 1)),
-                PQgetvalue(res, i, 3), atof(PQgetvalue(res, i, 2)));
-        listarItens(conn, vendaId);
-        v.exibir();
-    }
-    PQclear(res);
-}
-
-void GerenciaVendas::remover(PGconn* conn, int id) {
-    string idStr = to_string(id);
-    const char* p[1] = {idStr.c_str()};
-    PGresult* res = PQexecParams(conn,
-        "DELETE FROM vendas WHERE id=$1",
-        1, nullptr, p, nullptr, nullptr, 0);
-    checarErro(conn, res, "remover venda");
-    if (PQresultStatus(res) == PGRES_COMMAND_OK)
-        cout << "Venda removida com sucesso!" << endl;
-    PQclear(res);
-}
-
-void GerenciaVendas::listar(PGconn* conn) {
-    PGresult* res = PQexec(conn,
-        "SELECT id, cliente_id, valor_total, data FROM vendas ORDER BY id;");
-    checarErro(conn, res, "listar vendas");
-    int rows = PQntuples(res);
-    for (int i = 0; i < rows; i++) {
-        int vendaId = atoi(PQgetvalue(res, i, 0));
-        Venda v(vendaId, atoi(PQgetvalue(res, i, 1)),
-                PQgetvalue(res, i, 3), atof(PQgetvalue(res, i, 2)));
-        listarItens(conn, vendaId);
-        v.exibir();
-    }
-    PQclear(res);
-}
-
-void GerenciaVendas::listarSimplificado(PGconn* conn) {
-    PGresult* res = PQexec(conn, "SELECT id, data FROM vendas ORDER BY id;");
-    checarErro(conn, res, "listar vendas");
-    int rows = PQntuples(res);
-    for (int i = 0; i < rows; i++) {
-        Venda(atoi(PQgetvalue(res, i, 0)), 0,
-              PQgetvalue(res, i, 1), 0.0).exibirSimplificado();
-    }
-    PQclear(res);
-}
-
-void GerenciaVendas::exibirVenda(PGconn* conn, int id) {
-    string idStr = to_string(id);
-    const char* p[1] = {idStr.c_str()};
-    PGresult* res = PQexecParams(conn,
-        "SELECT id, cliente_id, valor_total, data FROM vendas WHERE id=$1",
-        1, nullptr, p, nullptr, nullptr, 0);
-    checarErro(conn, res, "exibir venda");
-    if (PQntuples(res) > 0) {
-        Venda v(atoi(PQgetvalue(res, 0, 0)), atoi(PQgetvalue(res, 0, 1)),
-                PQgetvalue(res, 0, 3), atof(PQgetvalue(res, 0, 2)));
-        PQclear(res);
-        listarItens(conn, id);
-        v.exibir();
-    } else {
-        cout << "Venda nao encontrada." << endl;
-        PQclear(res);
-    }
-}
-
-bool GerenciaVendas::possuiCadastradas(PGconn* conn) {
-    PGresult* res = PQexec(conn, "SELECT COUNT(*) FROM vendas;");
-    checarErro(conn, res, "contar vendas");
+bool GerenciaVendas::possuiPedidos(PGconn* conn) {
+    PGresult* res = PQexec(conn, "SELECT COUNT(*) FROM pedidos;");
+    checarErro(conn, res, "contar pedidos");
     int total = (PQntuples(res) > 0) ? atoi(PQgetvalue(res, 0, 0)) : 0;
     PQclear(res);
     return total > 0;
 }
 
-// ===================== CRUD ITENS =====================
+// ===================== NOVA VENDA =====================
 
-void GerenciaVendas::inserirItem(PGconn* conn, ItemVenda item) {
-    string vendaIdStr = to_string(item.getVendaId());
-    string instIdStr  = to_string(item.getInstrumentoId());
-    string qtdStr     = to_string(item.getQuantidade());
-    string precoStr   = to_string(item.getPrecoUnitario());
-    const char* p[4]  = {vendaIdStr.c_str(), instIdStr.c_str(), qtdStr.c_str(), precoStr.c_str()};
+void GerenciaVendas::novaVenda(PGconn* conn, int funcionarioId) {
+    if (!GerenciaClientes::possuiCadastrados(conn)) {
+        cout << "Nenhum cliente cadastrado. Cadastre um cliente antes de registrar uma venda." << endl;
+        return;
+    }
+    if (!GerenciaInstrumentos::possuiCadastrados(conn)) {
+        cout << "Nenhum instrumento cadastrado. Cadastre um instrumento antes de registrar uma venda." << endl;
+        return;
+    }
+
+    // --- Selecionar cliente ---
+    cout << "\n--- Clientes disponíveis ---" << endl;
+    GerenciaClientes::listarSimplificado(conn);
+    int clienteId;
+    cout << "ID do Cliente: ";
+    cin >> clienteId;
+
+    // Verificar se cliente tem desconto
+    {
+        string idStr = to_string(clienteId);
+        const char* p[1] = {idStr.c_str()};
+        PGresult* res = PQexecParams(conn,
+            "SELECT nome, torce_flamengo, assiste_one_piece, LOWER(COALESCE(cidade,'')) "
+            "FROM clientes WHERE id=$1",
+            1, nullptr, p, nullptr, nullptr, 0);
+        checarErro(conn, res, "buscar cliente");
+        if (PQntuples(res) == 0) {
+            cout << "Cliente nao encontrado." << endl;
+            PQclear(res);
+            return;
+        }
+        bool flam    = string(PQgetvalue(res, 0, 1)) == "t";
+        bool one     = string(PQgetvalue(res, 0, 2)) == "t";
+        bool sousa   = string(PQgetvalue(res, 0, 3)) == "sousa";
+        bool desconto = flam || one || sousa;
+        cout << "\nCliente: " << PQgetvalue(res, 0, 0);
+        if (desconto)
+            cout << " | DESCONTO DE 10% APLICADO";
+        cout << endl;
+        PQclear(res);
+    }
+
+    // --- Montar carrinho ---
+    vector<int> instIds, qtds;
+    char continuar = 's';
+    while (continuar == 's' || continuar == 'S') {
+        cout << "\n--- Instrumentos disponíveis ---" << endl;
+        GerenciaInstrumentos::listarSimplificado(conn);
+        int instId, qtd;
+        cout << "ID do Instrumento: "; cin >> instId;
+        cout << "Quantidade: ";        cin >> qtd;
+        instIds.push_back(instId);
+        qtds.push_back(qtd);
+        cout << "Adicionar outro instrumento? (s/n): "; cin >> continuar;
+    }
+
+    // --- Forma de pagamento ---
+    cout << "\nForma de pagamento:" << endl;
+    cout << "1. Dinheiro"         << endl;
+    cout << "2. Cartao de Credito" << endl;
+    cout << "3. Cartao de Debito" << endl;
+    cout << "4. Pix"              << endl;
+    cout << "Escolha: ";
+    int formaopc; cin >> formaopc;
+    string forma;
+    switch (formaopc) {
+        case 1: forma = "dinheiro";        break;
+        case 2: forma = "cartao_credito";  break;
+        case 3: forma = "cartao_debito";   break;
+        case 4: forma = "pix";             break;
+        default: forma = "dinheiro";
+    }
+
+    // --- Montar arrays PostgreSQL ---
+    // Formato: ARRAY[1,2,3]
+    ostringstream arrInst, arrQtd;
+    arrInst << "{";
+    arrQtd  << "{";
+    for (size_t i = 0; i < instIds.size(); i++) {
+        if (i > 0) { arrInst << ","; arrQtd << ","; }
+        arrInst << instIds[i];
+        arrQtd  << qtds[i];
+    }
+    arrInst << "}";
+    arrQtd  << "}";
+
+    string cliStr  = to_string(clienteId);
+    string funcStr = to_string(funcionarioId);
+    string instArr = arrInst.str();
+    string qtdArr  = arrQtd.str();
+
+    const char* p[5] = {
+        cliStr.c_str(), funcStr.c_str(), forma.c_str(),
+        instArr.c_str(), qtdArr.c_str()
+    };
+
+    // --- Chamar stored procedure ---
     PGresult* res = PQexecParams(conn,
-        "INSERT INTO itens_venda (venda_id, instrumento_id, quantidade, preco_unitario) "
-        "VALUES ($1,$2,$3,$4)",
-        4, nullptr, p, nullptr, nullptr, 0);
-    checarErro(conn, res, "inserir item de venda");
+        "CALL efetuar_compra($1::integer, $2::integer, $3::forma_pgto, "
+        "$4::integer[], $5::integer[], NULL)",
+        5, nullptr, p, nullptr, nullptr, 0);
+
+    if (PQresultStatus(res) == PGRES_COMMAND_OK || PQresultStatus(res) == PGRES_TUPLES_OK) {
+        cout << "\nPedido registrado com sucesso! Status: PENDENTE." << endl;
+        cout << "Use a opcao 'Confirmar/Recusar Pagamento' para finalizar." << endl;
+    } else {
+        cout << "\nErro ao registrar pedido: " << PQerrorMessage(conn) << endl;
+    }
     PQclear(res);
 }
 
-void GerenciaVendas::removerItens(PGconn* conn, int vendaId) {
-    string idStr = to_string(vendaId);
-    const char* p[1] = {idStr.c_str()};
-    PGresult* res = PQexecParams(conn,
-        "DELETE FROM itens_venda WHERE venda_id=$1",
-        1, nullptr, p, nullptr, nullptr, 0);
-    checarErro(conn, res, "remover itens da venda");
-    PQclear(res);
-}
+// ===================== CONFIRMAR / RECUSAR =====================
 
-void GerenciaVendas::listarItens(PGconn* conn, int vendaId) {
-    string idStr = to_string(vendaId);
-    const char* p[1] = {idStr.c_str()};
-    PGresult* res = PQexecParams(conn,
-        "SELECT id, venda_id, instrumento_id, quantidade, preco_unitario "
-        "FROM itens_venda WHERE venda_id=$1 ORDER BY id",
-        1, nullptr, p, nullptr, nullptr, 0);
-    checarErro(conn, res, "listar itens da venda");
+void GerenciaVendas::atualizarStatus(PGconn* conn) {
+    if (!possuiPedidos(conn)) {
+        cout << "Nenhum pedido cadastrado." << endl;
+        return;
+    }
+
+    // Listar pedidos pendentes
+    PGresult* res = PQexec(conn,
+        "SELECT p.id, c.nome, p.total, p.desconto, p.forma_pagamento, p.data "
+        "FROM pedidos p JOIN clientes c ON c.id = p.cliente_id "
+        "WHERE p.status_pagamento = 'pendente' ORDER BY p.id;");
+    checarErro(conn, res, "listar pedidos pendentes");
     int rows = PQntuples(res);
-    for (int i = 0; i < rows; i++) {
-        ItemVenda(atoi(PQgetvalue(res, i, 0)), atoi(PQgetvalue(res, i, 1)),
-                  atoi(PQgetvalue(res, i, 2)), atoi(PQgetvalue(res, i, 3)),
-                  atof(PQgetvalue(res, i, 4))).exibir();
+    if (rows == 0) {
+        cout << "Nenhum pedido pendente." << endl;
+        PQclear(res);
+        return;
     }
+    cout << "\n--- Pedidos Pendentes ---" << endl;
+    for (int i = 0; i < rows; i++) {
+        cout << "[" << PQgetvalue(res, i, 0) << "] "
+             << PQgetvalue(res, i, 1)
+             << " | R$ " << PQgetvalue(res, i, 2)
+             << " | Desconto: " << PQgetvalue(res, i, 3) << "%"
+             << " | " << PQgetvalue(res, i, 4)
+             << " | " << PQgetvalue(res, i, 5) << endl;
+    }
+    PQclear(res);
+
+    int pedidoId;
+    cout << "\nID do pedido: "; cin >> pedidoId;
+    cout << "\n1. Confirmar pagamento" << endl;
+    cout << "2. Recusar pagamento"    << endl;
+    cout << "0. Cancelar"             << endl;
+    cout << "Escolha: ";
+    int opcao; cin >> opcao;
+
+    string novoStatus;
+    if      (opcao == 1) novoStatus = "confirmado";
+    else if (opcao == 2) novoStatus = "recusado";
+    else { cout << "Operacao cancelada." << endl; return; }
+
+    string idStr = to_string(pedidoId);
+    const char* p[2] = {novoStatus.c_str(), idStr.c_str()};
+    PGresult* res2 = PQexecParams(conn,
+        "UPDATE pedidos SET status_pagamento=$1::status_pgto WHERE id=$2",
+        2, nullptr, p, nullptr, nullptr, 0);
+    checarErro(conn, res2, "atualizar status do pedido");
+    if (PQresultStatus(res2) == PGRES_COMMAND_OK)
+        cout << "Status atualizado para: " << novoStatus << endl;
+    PQclear(res2);
+}
+
+// ===================== LISTAR =====================
+
+void GerenciaVendas::listar(PGconn* conn) {
+    PGresult* res = PQexec(conn,
+        "SELECT p.id, c.nome, f.nome, p.data, p.forma_pagamento, "
+        "p.status_pagamento, p.desconto, p.total "
+        "FROM pedidos p "
+        "JOIN clientes c     ON c.id = p.cliente_id "
+        "JOIN funcionarios f ON f.id = p.funcionario_id "
+        "ORDER BY p.id;");
+    checarErro(conn, res, "listar pedidos");
+    int rows = PQntuples(res);
+    if (rows == 0) { cout << "Nenhum pedido registrado." << endl; PQclear(res); return; }
+    for (int i = 0; i < rows; i++) {
+        cout << "------------------------------------------" << endl;
+        cout << "Pedido #"    << PQgetvalue(res, i, 0) << endl;
+        cout << "Cliente: "   << PQgetvalue(res, i, 1) << endl;
+        cout << "Vendedor: "  << PQgetvalue(res, i, 2) << endl;
+        cout << "Data: "      << PQgetvalue(res, i, 3) << endl;
+        cout << "Pagamento: " << PQgetvalue(res, i, 4)
+             << " | Status: " << PQgetvalue(res, i, 5) << endl;
+        cout << "Desconto: "  << PQgetvalue(res, i, 6) << "%" << endl;
+        cout << "Total: R$ " << PQgetvalue(res, i, 7) << endl;
+    }
+    cout << "------------------------------------------" << endl;
     PQclear(res);
 }
 
-// ===================== RELATÓRIO =====================
+void GerenciaVendas::exibirPedido(PGconn* conn, int pedidoId) {
+    string idStr = to_string(pedidoId);
+    const char* p[1] = {idStr.c_str()};
 
-void GerenciaVendas::relatorioVendas(PGconn* conn) {
-    PGresult* res = PQexec(conn, "SELECT COUNT(*), COALESCE(SUM(valor_total), 0) FROM vendas;");
-    checarErro(conn, res, "gerar relatorio de vendas");
-    if (PQntuples(res) > 0) {
-        cout << "\n--- RELATORIO DE VENDAS ---" << endl;
-        cout << "Total de Vendas Realizadas: " << PQgetvalue(res, 0, 0) << endl;
-        cout << "Valor Total Vendido: R$ "     << PQgetvalue(res, 0, 1) << endl;
-        cout << "---------------------------\n" << endl;
+    PGresult* res = PQexecParams(conn,
+        "SELECT p.id, c.nome, f.nome, p.data, p.forma_pagamento, "
+        "p.status_pagamento, p.desconto, p.total "
+        "FROM pedidos p "
+        "JOIN clientes c     ON c.id = p.cliente_id "
+        "JOIN funcionarios f ON f.id = p.funcionario_id "
+        "WHERE p.id=$1",
+        1, nullptr, p, nullptr, nullptr, 0);
+    checarErro(conn, res, "exibir pedido");
+    if (PQntuples(res) == 0) {
+        cout << "Pedido nao encontrado." << endl;
+        PQclear(res);
+        return;
     }
+    cout << "\n========== PEDIDO #" << PQgetvalue(res, 0, 0) << " ==========" << endl;
+    cout << "Cliente: "   << PQgetvalue(res, 0, 1) << endl;
+    cout << "Vendedor: "  << PQgetvalue(res, 0, 2) << endl;
+    cout << "Data: "      << PQgetvalue(res, 0, 3) << endl;
+    cout << "Pagamento: " << PQgetvalue(res, 0, 4)
+         << " | Status: " << PQgetvalue(res, 0, 5) << endl;
+    cout << "Desconto: "  << PQgetvalue(res, 0, 6) << "%" << endl;
+    cout << "Total: R$ " << PQgetvalue(res, 0, 7) << endl;
+    PQclear(res);
+
+    // Itens do pedido
+    PGresult* res2 = PQexecParams(conn,
+        "SELECT i.nome, ip.quantidade, ip.preco_unitario, "
+        "(ip.quantidade * ip.preco_unitario) AS subtotal "
+        "FROM itens_pedido ip "
+        "JOIN instrumentos i ON i.id = ip.instrumento_id "
+        "WHERE ip.pedido_id=$1 ORDER BY ip.id",
+        1, nullptr, p, nullptr, nullptr, 0);
+    checarErro(conn, res2, "listar itens do pedido");
+    int rows = PQntuples(res2);
+    cout << "\n--- Itens ---" << endl;
+    for (int i = 0; i < rows; i++) {
+        cout << PQgetvalue(res2, i, 0)
+             << " x" << PQgetvalue(res2, i, 1)
+             << " | R$ " << PQgetvalue(res2, i, 2)
+             << " | Subtotal: R$ " << PQgetvalue(res2, i, 3) << endl;
+    }
+    cout << "====================================\n" << endl;
+    PQclear(res2);
+}
+
+// ===================== HISTÓRICO CLIENTE =====================
+
+void GerenciaVendas::historicoCliente(PGconn* conn) {
+    if (!GerenciaClientes::possuiCadastrados(conn)) {
+        cout << "Nenhum cliente cadastrado." << endl;
+        return;
+    }
+    GerenciaClientes::listarSimplificado(conn);
+    int clienteId;
+    cout << "ID do Cliente: "; cin >> clienteId;
+
+    string idStr = to_string(clienteId);
+    const char* p[1] = {idStr.c_str()};
+    PGresult* res = PQexecParams(conn,
+        "SELECT p.id, p.data, p.forma_pagamento, p.status_pagamento, p.desconto, p.total "
+        "FROM pedidos p WHERE p.cliente_id=$1 ORDER BY p.data DESC",
+        1, nullptr, p, nullptr, nullptr, 0);
+    checarErro(conn, res, "historico do cliente");
+    int rows = PQntuples(res);
+    if (rows == 0) {
+        cout << "Este cliente nao possui pedidos." << endl;
+        PQclear(res);
+        return;
+    }
+    cout << "\n--- Historico de Pedidos ---" << endl;
+    for (int i = 0; i < rows; i++) {
+        cout << "[" << PQgetvalue(res, i, 0) << "] "
+             << PQgetvalue(res, i, 1)
+             << " | " << PQgetvalue(res, i, 2)
+             << " | " << PQgetvalue(res, i, 3)
+             << " | Desconto: " << PQgetvalue(res, i, 4) << "%"
+             << " | Total: R$ " << PQgetvalue(res, i, 5) << endl;
+    }
+    PQclear(res);
+
+    char verDetalhe;
+    cout << "\nVer detalhe de algum pedido? (s/n): "; cin >> verDetalhe;
+    if (verDetalhe == 's' || verDetalhe == 'S') {
+        int pedidoId;
+        cout << "ID do pedido: "; cin >> pedidoId;
+        exibirPedido(conn, pedidoId);
+    }
+}
+
+// ===================== RELATÓRIO MENSAL =====================
+
+void GerenciaVendas::relatorioMensal(PGconn* conn) {
+    PGresult* res = PQexec(conn,
+        "SELECT vendedor, mes, total_pedidos, total_vendido "
+        "FROM vw_vendas_por_vendedor_mes;");
+    checarErro(conn, res, "relatorio mensal");
+    int rows = PQntuples(res);
+    cout << "\n--- RELATORIO MENSAL POR VENDEDOR ---" << endl;
+    if (rows == 0) {
+        cout << "Nenhuma venda confirmada ainda." << endl;
+    } else {
+        for (int i = 0; i < rows; i++) {
+            cout << PQgetvalue(res, i, 1)          // mes
+                 << " | " << PQgetvalue(res, i, 0) // vendedor
+                 << " | Pedidos: " << PQgetvalue(res, i, 2)
+                 << " | Total: R$ " << PQgetvalue(res, i, 3) << endl;
+        }
+    }
+    cout << "-------------------------------------\n" << endl;
     PQclear(res);
 }
 
 // ===================== MENU =====================
 
 void GerenciaVendas::menu(PGconn* conn) {
+    // Autentica o funcionario para associar ao pedido
+    int funcionarioId = -1;
+    if (!GerenciaFuncionarios::autenticar(conn, funcionarioId)) return;
+
     int opcao = -1;
     while (opcao != 0) {
         cout << "\n===== GERENCIAR VENDAS =====" << endl;
-        cout << "1. Inserir Venda" << endl;
-        cout << "2. Alterar Venda (data/itens)" << endl;
-        cout << "3. Pesquisar Venda por Nome do Cliente" << endl;
-        cout << "4. Remover Venda" << endl;
-        cout << "5. Listar Todas as Vendas" << endl;
-        cout << "6. Exibir Venda por ID" << endl;
-        cout << "7. Relatorio de Vendas" << endl;
-        cout << "0. Voltar" << endl;
+        cout << "1. Nova Venda"                  << endl;
+        cout << "2. Confirmar/Recusar Pagamento" << endl;
+        cout << "3. Listar Todos os Pedidos"     << endl;
+        cout << "4. Exibir Pedido por ID"        << endl;
+        cout << "5. Historico de um Cliente"     << endl;
+        cout << "6. Relatorio Mensal"            << endl;
+        cout << "0. Voltar"                      << endl;
         cout << "\nEscolha uma opcao: ";
         cin >> opcao;
         cout << endl;
 
-        int idBusca, clienteId;
-        string data, nomeCliente;
-
         switch (opcao) {
-
-        case 1: {
-            if (!GerenciaClientes::possuiCadastrados(conn)) {
-                cout << "Nenhum cliente cadastrado. Cadastre um cliente antes de registrar uma venda." << endl;
-                break;
-            }
-            if (!GerenciaInstrumentos::possuiCadastrados(conn)) {
-                cout << "Nenhum instrumento cadastrado. Cadastre um instrumento antes de registrar uma venda." << endl;
-                break;
-            }
-            cout << "--- Clientes disponíveis ---" << endl;
-            GerenciaClientes::listarSimplificado(conn);
-            cout << "ID do Cliente: ";
-            cin >> clienteId;
-            cout << "Data da Venda (AAAA-MM-DD): ";
-            cin.ignore();
-            getline(cin, data);
-
-            Venda novaVenda(0, clienteId, data, 0.0);
-
-            char continuar = 's';
-            while (continuar == 's' || continuar == 'S') {
-                cout << "\n--- Instrumentos disponíveis ---" << endl;
-                GerenciaInstrumentos::listarSimplificado(conn);
-                int instId, qtd;
-                double precoUnit;
-                cout << "ID do Instrumento: ";
-                cin >> instId;
-                cout << "Quantidade: ";
-                cin >> qtd;
-                cout << "Preco Unitario: ";
-                cin >> precoUnit;
-                novaVenda.adicionarItem(ItemVenda(0, 0, instId, qtd, precoUnit));
-                cout << "Adicionar outro instrumento? (s/n): ";
-                cin >> continuar;
-            }
-
-            novaVenda.recalcularTotal();
-            int vendaId = inserir(conn, novaVenda);
-            if (vendaId > 0) {
-                for (const ItemVenda& item : novaVenda.getItens()) {
-                    inserirItem(conn, ItemVenda(0, vendaId,
-                        item.getInstrumentoId(), item.getQuantidade(), item.getPrecoUnitario()));
-                }
-                cout << "Venda #" << vendaId << " registrada! Total: R$ " << novaVenda.getValorTotal() << endl;
-            }
-            break;
-        }
-
-        case 2: {
-            if (!possuiCadastradas(conn)) {
-                cout << "Nenhuma venda cadastrada para alterar." << endl;
-                break;
-            }
-            listarSimplificado(conn);
-            cout << "ID da venda a alterar: ";
-            cin >> idBusca;
-            cout << endl;
-            exibirVenda(conn, idBusca);
-
-            cout << "===== MENU DE EDICAO =====" << endl;
-            cout << "1. Alterar Data" << endl;
-            cout << "2. Substituir todos os Itens" << endl;
-            cout << "0. Voltar" << endl;
-            cout << "\nEscolha uma opcao: ";
-            int opcaoAlteracao;
-            cin >> opcaoAlteracao;
-            cin.ignore(numeric_limits<streamsize>::max(), '\n');
-            cout << endl;
-
-            switch (opcaoAlteracao) {
-            case 1: {
-                cout << "Nova Data (AAAA-MM-DD): ";
-                getline(cin, data);
-                string idStr = to_string(idBusca);
-                const char* p[2] = {data.c_str(), idStr.c_str()};
-                PGresult* res = PQexecParams(conn,
-                    "UPDATE vendas SET data=$1 WHERE id=$2",
-                    2, nullptr, p, nullptr, nullptr, 0);
-                checarErro(conn, res, "alterar data da venda");
-                PQclear(res);
-                break;
-            }
-            case 2: {
-                removerItens(conn, idBusca);
-                Venda vendaEditada(idBusca, 0, "", 0.0);
-                char continuar = 's';
-                while (continuar == 's' || continuar == 'S') {
-                    cout << "\n--- Instrumentos disponíveis ---" << endl;
-                    GerenciaInstrumentos::listarSimplificado(conn);
-                    int instId, qtd;
-                    double precoUnit;
-                    cout << "ID do Instrumento: ";
-                    cin >> instId;
-                    cout << "Quantidade: ";
-                    cin >> qtd;
-                    cout << "Preco Unitario: ";
-                    cin >> precoUnit;
-                    vendaEditada.adicionarItem(ItemVenda(0, idBusca, instId, qtd, precoUnit));
-                    cout << "Adicionar outro instrumento? (s/n): ";
-                    cin >> continuar;
-                }
-                vendaEditada.recalcularTotal();
-                for (const ItemVenda& item : vendaEditada.getItens())
-                    inserirItem(conn, item);
-                string valStr = to_string(vendaEditada.getValorTotal());
-                string idStr  = to_string(idBusca);
-                const char* p[2] = {valStr.c_str(), idStr.c_str()};
-                PGresult* res = PQexecParams(conn,
-                    "UPDATE vendas SET valor_total=$1 WHERE id=$2",
-                    2, nullptr, p, nullptr, nullptr, 0);
-                checarErro(conn, res, "atualizar total da venda");
-                PQclear(res);
-                cout << "Itens atualizados. Novo total: R$ " << vendaEditada.getValorTotal() << endl;
-                break;
-            }
-            case 0: break;
-            default: cout << "Opcao invalida!" << endl;
-            }
-            break;
-        }
-
-        case 3:
-            if (!possuiCadastradas(conn)) {
-                cout << "Nenhuma venda cadastrada para pesquisar." << endl;
-                break;
-            }
-            cout << "Nome do cliente para buscar: ";
-            cin.ignore();
-            getline(cin, nomeCliente);
-            cout << endl;
-            pesquisar(conn, nomeCliente);
-            break;
-
-        case 4:
-            if (!possuiCadastradas(conn)) {
-                cout << "Nenhuma venda cadastrada para remover." << endl;
-                break;
-            }
-            listarSimplificado(conn);
-            cout << "ID da venda a remover: ";
-            cin >> idBusca;
-            cout << endl;
-            remover(conn, idBusca);
-            break;
-
-        case 5:
-            if (!possuiCadastradas(conn)) {
-                cout << "Nenhuma venda cadastrada." << endl;
-                break;
-            }
+        case 1: novaVenda(conn, funcionarioId);  break;
+        case 2: atualizarStatus(conn);           break;
+        case 3: listar(conn);                    break;
+        case 4: {
+            if (!possuiPedidos(conn)) { cout << "Nenhum pedido cadastrado." << endl; break; }
             listar(conn);
+            int id; cout << "ID do pedido: "; cin >> id;
+            exibirPedido(conn, id);
             break;
-
-        case 6:
-            if (!possuiCadastradas(conn)) {
-                cout << "Nenhuma venda cadastrada." << endl;
-                break;
-            }
-            listarSimplificado(conn);
-            cout << "ID da venda: ";
-            cin >> idBusca;
-            cout << endl;
-            exibirVenda(conn, idBusca);
-            break;
-
-        case 7:
-            relatorioVendas(conn);
-            break;
-
-        case 0:
-            cout << "Voltando ao menu principal..." << endl;
-            break;
-
-        default:
-            cout << "Opcao invalida!" << endl;
+        }
+        case 5: historicoCliente(conn);          break;
+        case 6: relatorioMensal(conn);           break;
+        case 0: cout << "Voltando..." << endl;  break;
+        default: cout << "Opcao invalida!" << endl;
         }
     }
 }
