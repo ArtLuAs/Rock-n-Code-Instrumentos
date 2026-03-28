@@ -3,6 +3,7 @@
 
 #include "gerenciaInstrumentos.hpp"
 #include "gerenciaClientes.hpp"
+#include "gerenciaFuncionarios.hpp"
 #include "gerenciaVendas.hpp"
 #include <libpq-fe.h>
 #include <string>
@@ -16,12 +17,15 @@ private:
     std::string endereco;
     std::string telefone;
 
+    void menuFuncionario(PGconn* conn, int funcionarioId);
+    void menuCliente(PGconn* conn);
+
 public:
     Loja(std::string nome, std::string cnpj,
          std::string endereco, std::string telefone);
 
     void exibir();
-    void menu(PGconn* conn);
+    void menu(PGconn* conn); // menu inicial: login ou continuar como cliente
 };
 
 #endif
