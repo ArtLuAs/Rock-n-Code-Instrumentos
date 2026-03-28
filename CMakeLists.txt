@@ -27,11 +27,13 @@ add_executable(rock_n_code_instrumentos
     main.cpp
     src/instrumento.cpp
     src/cliente.cpp
+    src/funcionario.cpp
     src/venda.cpp
     src/itemVenda.cpp
     src/lojaGerencia.cpp
     src/gerenciaInstrumentos.cpp
     src/gerenciaClientes.cpp
+    src/gerenciaFuncionarios.cpp
     src/gerenciaVendas.cpp
 )
 
