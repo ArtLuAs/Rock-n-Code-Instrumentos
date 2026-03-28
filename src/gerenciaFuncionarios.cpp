@@ -1,9 +1,20 @@
 #include "../headers/gerenciaFuncionarios.hpp"
+#include <algorithm>
 #include <cstdlib>
 #include <iostream>
 #include <limits>
 
 using namespace std;
+
+// ===================== AUXILIAR =====================
+
+static string normalizarCpf(const string& cpf) {
+    string resultado;
+    for (char c : cpf)
+        if (c != '.' && c != '-')
+            resultado += c;
+    return resultado;
+}
 
 // ===================== PRIVADO =====================
 
@@ -15,8 +26,9 @@ void GerenciaFuncionarios::checarErro(PGconn* conn, PGresult* res, const string&
 // ===================== CRUD =====================
 
 void GerenciaFuncionarios::inserir(PGconn* conn, Funcionario func) {
+    string cpfNorm = normalizarCpf(func.getCpf());
     const char* p[5] = {
-        func.getNome().c_str(), func.getCpf().c_str(),
+        func.getNome().c_str(), cpfNorm.c_str(),
         func.getTelefone().c_str(), func.getEmail().c_str(),
         func.getCargo().c_str()
     };
@@ -31,9 +43,10 @@ void GerenciaFuncionarios::inserir(PGconn* conn, Funcionario func) {
 }
 
 void GerenciaFuncionarios::alterar(PGconn* conn, Funcionario func) {
-    string idStr = to_string(func.getId());
+    string idStr   = to_string(func.getId());
+    string cpfNorm = normalizarCpf(func.getCpf());
     const char* p[6] = {
-        func.getNome().c_str(), func.getCpf().c_str(),
+        func.getNome().c_str(), cpfNorm.c_str(),
         func.getTelefone().c_str(), func.getEmail().c_str(),
         func.getCargo().c_str(), idStr.c_str()
     };
@@ -62,6 +75,16 @@ void GerenciaFuncionarios::pesquisar(PGconn* conn, string nomeBusca) {
 }
 
 void GerenciaFuncionarios::remover(PGconn* conn, int id) {
+    // Proteção: não permite remover o último funcionário
+    PGresult* resCount = PQexec(conn, "SELECT COUNT(*) FROM funcionarios;");
+    checarErro(conn, resCount, "contar funcionarios");
+    int total = (PQntuples(resCount) > 0) ? atoi(PQgetvalue(resCount, 0, 0)) : 0;
+    PQclear(resCount);
+    if (total <= 1) {
+        cout << "Nao e possivel remover o unico funcionario cadastrado!" << endl;
+        return;
+    }
+
     string idStr = to_string(id);
     const char* p[1] = {idStr.c_str()};
     PGresult* res = PQexecParams(conn,
@@ -127,26 +150,32 @@ bool GerenciaFuncionarios::possuiCadastrados(PGconn* conn) {
 
 bool GerenciaFuncionarios::autenticar(PGconn* conn, int& idOut) {
     cout << "\n===== LOGIN DE FUNCIONARIO =====" << endl;
-    cout << "Digite seu CPF ou ID: ";
+    cout << "Digite seu CPF (so numeros) ou ID: ";
     string entrada;
     cin.ignore();
     getline(cin, entrada);
 
+    // Normaliza caso o usuario tenha digitado com . e -
+    string entradaNorm = normalizarCpf(entrada);
+
     PGresult* res;
-    // Tenta por ID se for numérico, senão por CPF
-    bool isNumerico = !entrada.empty() &&
-                      entrada.find_first_not_of("0123456789") == string::npos;
-    if (isNumerico) {
-        const char* p[1] = {entrada.c_str()};
+    bool isNumerico = !entradaNorm.empty() &&
+                      entradaNorm.find_first_not_of("0123456789") == string::npos;
+
+    if (isNumerico && entradaNorm.size() <= 4) {
+        // Provavelmente um ID curto
+        const char* p[1] = {entradaNorm.c_str()};
         res = PQexecParams(conn,
             "SELECT id, nome FROM funcionarios WHERE id=$1",
             1, nullptr, p, nullptr, nullptr, 0);
     } else {
-        const char* p[1] = {entrada.c_str()};
+        // CPF (com ou sem formatação)
+        const char* p[1] = {entradaNorm.c_str()};
         res = PQexecParams(conn,
             "SELECT id, nome FROM funcionarios WHERE cpf=$1",
             1, nullptr, p, nullptr, nullptr, 0);
     }
+
     checarErro(conn, res, "autenticar funcionario");
     if (PQntuples(res) > 0) {
         idOut = atoi(PQgetvalue(res, 0, 0));
@@ -177,8 +206,8 @@ void GerenciaFuncionarios::relatorioFuncionarios(PGconn* conn) {
         cout << "Nenhuma venda confirmada ainda." << endl;
     } else {
         for (int i = 0; i < rows; i++) {
-            cout << PQgetvalue(res2, i, 0)        // vendedor
-                 << " | "  << PQgetvalue(res2, i, 1)  // mes
+            cout << PQgetvalue(res2, i, 0)
+                 << " | "  << PQgetvalue(res2, i, 1)
                  << " | Pedidos: " << PQgetvalue(res2, i, 2)
                  << " | Total: R$ " << PQgetvalue(res2, i, 3) << endl;
         }
@@ -257,6 +286,7 @@ void GerenciaFuncionarios::menu(PGconn* conn) {
             }
             case 2: {
                 cout << "Novo CPF: "; getline(cin, cpf);
+                cpf = normalizarCpf(cpf);
                 string idStr = to_string(idBusca);
                 const char* p[2] = {cpf.c_str(), idStr.c_str()};
                 PGresult* res = PQexecParams(conn,
