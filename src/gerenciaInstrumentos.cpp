@@ -46,13 +46,15 @@ void GerenciaInstrumentos::checarErro(PGconn* conn, PGresult* res, const string&
 void GerenciaInstrumentos::inserir(PGconn* conn, Instrumento inst) {
     string precoStr = to_string(inst.getPreco());
     string qtdStr   = to_string(inst.getQuantidade());
-    const char* p[5] = {
-        inst.getNome().c_str(), inst.getTipo().c_str(),
-        inst.getMarca().c_str(), precoStr.c_str(), qtdStr.c_str()
+    string mariStr  = inst.getFabricadoEmMari() ? "true" : "false";
+    const char* p[7] = {
+        inst.getNome().c_str(), inst.getTipo().c_str(), inst.getMarca().c_str(),
+        precoStr.c_str(), qtdStr.c_str(), inst.getCategoria().c_str(), mariStr.c_str()
     };
     PGresult* res = PQexecParams(conn,
-        "INSERT INTO instrumentos (nome, tipo, marca, preco, quantidade) VALUES ($1,$2,$3,$4,$5)",
-        5, nullptr, p, nullptr, nullptr, 0);
+        "INSERT INTO instrumentos (nome, tipo, marca, preco, quantidade, categoria, fabricado_em_mari) "
+        "VALUES ($1,$2,$3,$4,$5,$6,$7)",
+        7, nullptr, p, nullptr, nullptr, 0);
     checarErro(conn, res, "inserir instrumento");
     if (PQresultStatus(res) == PGRES_COMMAND_OK)
         cout << "Instrumento inserido com sucesso!" << endl;
@@ -63,13 +65,16 @@ void GerenciaInstrumentos::alterar(PGconn* conn, Instrumento inst) {
     string idStr    = to_string(inst.getId());
     string precoStr = to_string(inst.getPreco());
     string qtdStr   = to_string(inst.getQuantidade());
-    const char* p[6] = {
+    string mariStr  = inst.getFabricadoEmMari() ? "true" : "false";
+    const char* p[8] = {
         inst.getNome().c_str(), inst.getTipo().c_str(), inst.getMarca().c_str(),
-        precoStr.c_str(), qtdStr.c_str(), idStr.c_str()
+        precoStr.c_str(), qtdStr.c_str(), inst.getCategoria().c_str(),
+        mariStr.c_str(), idStr.c_str()
     };
     PGresult* res = PQexecParams(conn,
-        "UPDATE instrumentos SET nome=$1, tipo=$2, marca=$3, preco=$4, quantidade=$5 WHERE id=$6",
-        6, nullptr, p, nullptr, nullptr, 0);
+        "UPDATE instrumentos SET nome=$1, tipo=$2, marca=$3, preco=$4, "
+        "quantidade=$5, categoria=$6, fabricado_em_mari=$7 WHERE id=$8",
+        8, nullptr, p, nullptr, nullptr, 0);
     checarErro(conn, res, "alterar instrumento");
     PQclear(res);
 }
@@ -78,8 +83,8 @@ void GerenciaInstrumentos::pesquisar(PGconn* conn, string nomeBusca) {
     string termo = "%" + nomeBusca + "%";
     const char* p[1] = {termo.c_str()};
     PGresult* res = PQexecParams(conn,
-        "SELECT id, nome, tipo, marca, preco, quantidade FROM instrumentos "
-        "WHERE nome ILIKE $1 OR tipo ILIKE $1 OR marca ILIKE $1",
+        "SELECT id, nome, tipo, marca, preco, quantidade, categoria, fabricado_em_mari "
+        "FROM instrumentos WHERE nome ILIKE $1 OR tipo ILIKE $1 OR marca ILIKE $1 OR categoria ILIKE $1",
         1, nullptr, p, nullptr, nullptr, 0);
     checarErro(conn, res, "pesquisar instrumento");
     int rows = PQntuples(res);
@@ -87,7 +92,9 @@ void GerenciaInstrumentos::pesquisar(PGconn* conn, string nomeBusca) {
     for (int i = 0; i < rows; i++) {
         Instrumento(atoi(PQgetvalue(res, i, 0)), PQgetvalue(res, i, 1),
                     PQgetvalue(res, i, 2), PQgetvalue(res, i, 3),
-                    atof(PQgetvalue(res, i, 4)), atoi(PQgetvalue(res, i, 5))).exibir();
+                    atof(PQgetvalue(res, i, 4)), atoi(PQgetvalue(res, i, 5)),
+                    PQgetvalue(res, i, 6),
+                    string(PQgetvalue(res, i, 7)) == "t").exibir();
     }
     PQclear(res);
 }
@@ -106,26 +113,32 @@ void GerenciaInstrumentos::remover(PGconn* conn, int id) {
 
 void GerenciaInstrumentos::listar(PGconn* conn) {
     PGresult* res = PQexec(conn,
-        "SELECT id, nome, tipo, marca, preco, quantidade FROM instrumentos ORDER BY id;");
+        "SELECT id, nome, tipo, marca, preco, quantidade, categoria, fabricado_em_mari "
+        "FROM instrumentos ORDER BY id;");
     checarErro(conn, res, "listar instrumentos");
     int rows = PQntuples(res);
     for (int i = 0; i < rows; i++) {
         Instrumento(atoi(PQgetvalue(res, i, 0)), PQgetvalue(res, i, 1),
                     PQgetvalue(res, i, 2), PQgetvalue(res, i, 3),
-                    atof(PQgetvalue(res, i, 4)), atoi(PQgetvalue(res, i, 5))).exibir();
+                    atof(PQgetvalue(res, i, 4)), atoi(PQgetvalue(res, i, 5)),
+                    PQgetvalue(res, i, 6),
+                    string(PQgetvalue(res, i, 7)) == "t").exibir();
     }
     PQclear(res);
 }
 
 void GerenciaInstrumentos::listarSimplificado(PGconn* conn) {
     PGresult* res = PQexec(conn,
-        "SELECT id, nome, tipo, marca, preco, quantidade FROM instrumentos ORDER BY id;");
+        "SELECT id, nome, tipo, marca, preco, quantidade, categoria, fabricado_em_mari "
+        "FROM instrumentos ORDER BY id;");
     checarErro(conn, res, "listar instrumentos");
     int rows = PQntuples(res);
     for (int i = 0; i < rows; i++) {
         Instrumento(atoi(PQgetvalue(res, i, 0)), PQgetvalue(res, i, 1),
                     PQgetvalue(res, i, 2), PQgetvalue(res, i, 3),
-                    atof(PQgetvalue(res, i, 4)), atoi(PQgetvalue(res, i, 5))).exibirSimplificado();
+                    atof(PQgetvalue(res, i, 4)), atoi(PQgetvalue(res, i, 5)),
+                    PQgetvalue(res, i, 6),
+                    string(PQgetvalue(res, i, 7)) == "t").exibirSimplificado();
     }
     PQclear(res);
 }
@@ -134,13 +147,16 @@ void GerenciaInstrumentos::exibir(PGconn* conn, int id) {
     string idStr = to_string(id);
     const char* p[1] = {idStr.c_str()};
     PGresult* res = PQexecParams(conn,
-        "SELECT id, nome, tipo, marca, preco, quantidade FROM instrumentos WHERE id=$1",
+        "SELECT id, nome, tipo, marca, preco, quantidade, categoria, fabricado_em_mari "
+        "FROM instrumentos WHERE id=$1",
         1, nullptr, p, nullptr, nullptr, 0);
     checarErro(conn, res, "exibir instrumento");
     if (PQntuples(res) > 0) {
         Instrumento(atoi(PQgetvalue(res, 0, 0)), PQgetvalue(res, 0, 1),
                     PQgetvalue(res, 0, 2), PQgetvalue(res, 0, 3),
-                    atof(PQgetvalue(res, 0, 4)), atoi(PQgetvalue(res, 0, 5))).exibir();
+                    atof(PQgetvalue(res, 0, 4)), atoi(PQgetvalue(res, 0, 5)),
+                    PQgetvalue(res, 0, 6),
+                    string(PQgetvalue(res, 0, 7)) == "t").exibir();
     } else {
         cout << "Instrumento nao encontrado." << endl;
     }
@@ -164,13 +180,18 @@ void GerenciaInstrumentos::relatorioEstoque(PGconn* conn) {
     PGresult* res2 = PQexec(conn,
         "SELECT COUNT(*) FROM instrumentos WHERE quantidade = 0;");
     checarErro(conn, res2, "gerar relatorio de estoque (sem estoque)");
+    PGresult* res3 = PQexec(conn,
+        "SELECT COUNT(*) FROM instrumentos WHERE fabricado_em_mari = TRUE;");
+    checarErro(conn, res3, "gerar relatorio de estoque (mari)");
     if (PQntuples(res) > 0 && PQntuples(res2) > 0) {
         cout << "\n--- RELATORIO DE ESTOQUE ---" << endl;
-        cout << "Quantidade Total em Estoque: " << PQgetvalue(res, 0, 0) << endl;
-        cout << "Valor Total em Estoque: R$ "   << PQgetvalue(res, 0, 1) << endl;
+        cout << "Quantidade Total em Estoque: " << PQgetvalue(res,  0, 0) << endl;
+        cout << "Valor Total em Estoque: R$ "   << PQgetvalue(res,  0, 1) << endl;
         cout << "Instrumentos sem Estoque: "    << PQgetvalue(res2, 0, 0) << endl;
+        cout << "Fabricados em Mari: "          << PQgetvalue(res3, 0, 0) << endl;
         cout << "----------------------------\n" << endl;
     }
+    PQclear(res3);
     PQclear(res2);
     PQclear(res);
 }
@@ -194,8 +215,10 @@ void GerenciaInstrumentos::menu(PGconn* conn) {
         cout << endl;
 
         int idBusca, qtd, opcaoAlteracao;
-        string nome, tipo, marca;
+        string nome, tipo, marca, categoria;
         double preco;
+        char mariChar;
+        bool mari;
 
         switch (opcao) {
         case 1:
@@ -209,7 +232,13 @@ void GerenciaInstrumentos::menu(PGconn* conn) {
             cin >> preco;
             cout << "Quantidade: ";
             cin >> qtd;
-            inserir(conn, Instrumento(0, nome, tipo, marca, preco, qtd));
+            cin.ignore();
+            cout << "Categoria: ";
+            getline(cin, categoria);
+            cout << "Fabricado em Mari? (s/n): ";
+            cin >> mariChar;
+            mari = (mariChar == 's' || mariChar == 'S');
+            inserir(conn, Instrumento(0, nome, tipo, marca, preco, qtd, categoria, mari));
             break;
 
         case 2:
@@ -229,6 +258,8 @@ void GerenciaInstrumentos::menu(PGconn* conn) {
             cout << "3. Alterar Marca" << endl;
             cout << "4. Alterar Preco" << endl;
             cout << "5. Alterar Quantidade" << endl;
+            cout << "6. Alterar Categoria" << endl;
+            cout << "7. Alterar Fabricado em Mari" << endl;
             cout << "0. Voltar" << endl;
             cout << "\nEscolha uma opcao: ";
             cin >> opcaoAlteracao;
@@ -244,8 +275,7 @@ void GerenciaInstrumentos::menu(PGconn* conn) {
                 PGresult* res = PQexecParams(conn,
                     "UPDATE instrumentos SET nome=$1 WHERE id=$2",
                     2, nullptr, p, nullptr, nullptr, 0);
-                checarErro(conn, res, "alterar nome");
-                PQclear(res);
+                checarErro(conn, res, "alterar nome"); PQclear(res);
                 break;
             }
             case 2: {
@@ -255,8 +285,7 @@ void GerenciaInstrumentos::menu(PGconn* conn) {
                 PGresult* res = PQexecParams(conn,
                     "UPDATE instrumentos SET tipo=$1 WHERE id=$2",
                     2, nullptr, p, nullptr, nullptr, 0);
-                checarErro(conn, res, "alterar tipo");
-                PQclear(res);
+                checarErro(conn, res, "alterar tipo"); PQclear(res);
                 break;
             }
             case 3: {
@@ -267,8 +296,7 @@ void GerenciaInstrumentos::menu(PGconn* conn) {
                 PGresult* res = PQexecParams(conn,
                     "UPDATE instrumentos SET marca=$1 WHERE id=$2",
                     2, nullptr, p, nullptr, nullptr, 0);
-                checarErro(conn, res, "alterar marca");
-                PQclear(res);
+                checarErro(conn, res, "alterar marca"); PQclear(res);
                 break;
             }
             case 4: {
@@ -280,8 +308,7 @@ void GerenciaInstrumentos::menu(PGconn* conn) {
                 PGresult* res = PQexecParams(conn,
                     "UPDATE instrumentos SET preco=$1 WHERE id=$2",
                     2, nullptr, p, nullptr, nullptr, 0);
-                checarErro(conn, res, "alterar preco");
-                PQclear(res);
+                checarErro(conn, res, "alterar preco"); PQclear(res);
                 break;
             }
             case 5: {
@@ -293,8 +320,30 @@ void GerenciaInstrumentos::menu(PGconn* conn) {
                 PGresult* res = PQexecParams(conn,
                     "UPDATE instrumentos SET quantidade=$1 WHERE id=$2",
                     2, nullptr, p, nullptr, nullptr, 0);
-                checarErro(conn, res, "alterar quantidade");
-                PQclear(res);
+                checarErro(conn, res, "alterar quantidade"); PQclear(res);
+                break;
+            }
+            case 6: {
+                cout << "Nova Categoria: ";
+                getline(cin, categoria);
+                string idStr = to_string(idBusca);
+                const char* p[2] = {categoria.c_str(), idStr.c_str()};
+                PGresult* res = PQexecParams(conn,
+                    "UPDATE instrumentos SET categoria=$1 WHERE id=$2",
+                    2, nullptr, p, nullptr, nullptr, 0);
+                checarErro(conn, res, "alterar categoria"); PQclear(res);
+                break;
+            }
+            case 7: {
+                cout << "Fabricado em Mari? (s/n): ";
+                cin >> mariChar;
+                string mariStr = (mariChar == 's' || mariChar == 'S') ? "true" : "false";
+                string idStr   = to_string(idBusca);
+                const char* p[2] = {mariStr.c_str(), idStr.c_str()};
+                PGresult* res = PQexecParams(conn,
+                    "UPDATE instrumentos SET fabricado_em_mari=$1 WHERE id=$2",
+                    2, nullptr, p, nullptr, nullptr, 0);
+                checarErro(conn, res, "alterar fabricado em mari"); PQclear(res);
                 break;
             }
             case 0: break;
@@ -307,7 +356,7 @@ void GerenciaInstrumentos::menu(PGconn* conn) {
                 cout << "Nenhum instrumento cadastrado para pesquisar." << endl;
                 break;
             }
-            cout << "Digite [nome/marca/tipo] para buscar: ";
+            cout << "Digite [nome/marca/tipo/categoria] para buscar: ";
             cin.ignore();
             getline(cin, nome);
             cout << endl;
