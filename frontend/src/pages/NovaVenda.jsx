@@ -3,16 +3,16 @@ import { Container, Row, Col, Form, Button, Table, Card, Alert } from 'react-boo
 import { useNavigate } from 'react-router-dom';
 import { api } from '../services/api';
 
-const FORMAS_PAGAMENTO = ['dinheiro', 'cartao_credito', 'cartao_debito', 'pix'];
+const FORMAS_PAGAMENTO = ['dinheiro', 'cartao_credito', 'cartao_debito', 'pix', 'boleto', 'berries'];
 
 const NovaVenda = () => {
   const navigate = useNavigate();
 
-  const [clientes, setClientes]           = useState([]);
-  const [produtos, setProdutos]           = useState([]);
-  const [funcionarios, setFuncionarios]   = useState([]);
-  const [isLoading, setIsLoading]         = useState(false);
-  const [alerta, setAlerta]               = useState({ show: false, variant: '', message: '' });
+  const [clientes, setClientes]         = useState([]);
+  const [produtos, setProdutos]         = useState([]);
+  const [funcionarios, setFuncionarios] = useState([]);
+  const [isLoading, setIsLoading]       = useState(false);
+  const [alerta, setAlerta]             = useState({ show: false, variant: '', message: '' });
 
   const [selectedCliente, setSelectedCliente]         = useState('');
   const [selectedFuncionario, setSelectedFuncionario] = useState('');
@@ -51,7 +51,6 @@ const NovaVenda = () => {
     if (!selectedProduto || quantidade <= 0) return;
     const produto = produtos.find(p => p.id === parseInt(selectedProduto));
     if (!produto) return;
-
     const idx = carrinho.findIndex(i => i.id === produto.id);
     if (idx >= 0) {
       const novo = [...carrinho];
@@ -69,23 +68,12 @@ const NovaVenda = () => {
     setQuantidade(1);
   };
 
-  const handleRemoverItem = (index) => {
-    setCarrinho(prev => prev.filter((_, i) => i !== index));
-  };
+  const handleRemoverItem = (index) => setCarrinho(prev => prev.filter((_, i) => i !== index));
 
   const handleConcluirVenda = async () => {
-    if (!selectedCliente) {
-      mostrarAlerta('warning', 'Selecione um cliente.');
-      return;
-    }
-    if (!selectedFuncionario) {
-      mostrarAlerta('warning', 'Selecione o funcionário responsável.');
-      return;
-    }
-    if (carrinho.length === 0) {
-      mostrarAlerta('warning', 'Adicione pelo menos um produto.');
-      return;
-    }
+    if (!selectedCliente)    { mostrarAlerta('warning', 'Selecione um cliente.'); return; }
+    if (!selectedFuncionario){ mostrarAlerta('warning', 'Selecione o funcionário responsável.'); return; }
+    if (carrinho.length === 0){ mostrarAlerta('warning', 'Adicione pelo menos um produto.'); return; }
 
     const payload = {
       clienteId:      parseInt(selectedCliente),
@@ -144,7 +132,9 @@ const NovaVenda = () => {
               <Form.Group className="mb-4">
                 <Form.Label>Forma de Pagamento *</Form.Label>
                 <Form.Select value={formaPagamento} onChange={e => setFormaPagamento(e.target.value)} disabled={isLoading}>
-                  {FORMAS_PAGAMENTO.map(f => <option key={f} value={f}>{f.replace('_', ' ')}</option>)}
+                  {FORMAS_PAGAMENTO.map(f => (
+                    <option key={f} value={f}>{f.replace(/_/g, ' ')}</option>
+                  ))}
                 </Form.Select>
               </Form.Group>
 
@@ -172,9 +162,8 @@ const NovaVenda = () => {
                   </Form.Group>
                 </Col>
                 <Col md={6} className="d-flex align-items-end mb-3">
-                  <Button variant="primary" className="w-100" onClick={handleAddProduto} disabled={isLoading || !selectedProduto}>
-                    + Adicionar
-                  </Button>
+                  <Button variant="primary" className="w-100" onClick={handleAddProduto}
+                    disabled={isLoading || !selectedProduto}>+ Adicionar</Button>
                 </Col>
               </Row>
             </Card.Body>
@@ -211,13 +200,9 @@ const NovaVenda = () => {
                 Total: <span className="text-success">R$ {totalVenda.toFixed(2)}</span>
               </h4>
 
-              <Button
-                variant="success"
-                size="lg"
-                className="w-100 mt-3"
+              <Button variant="success" size="lg" className="w-100 mt-3"
                 onClick={handleConcluirVenda}
-                disabled={carrinho.length === 0 || !selectedCliente || !selectedFuncionario || isLoading}
-              >
+                disabled={carrinho.length === 0 || !selectedCliente || !selectedFuncionario || isLoading}>
                 {isLoading ? 'A processar...' : '✔ Concluir Venda'}
               </Button>
             </Card.Body>
