@@ -8,8 +8,8 @@ import ProdutosList from './pages/ProdutosList';
 import VendasList from './pages/VendasList';
 import NovaVenda from './pages/NovaVenda';
 import Login from './pages/Login';
-import MinhaConta from './pages/MinhaConta';   // <-- Nova importação
-import MeusPedidos from './pages/MeusPedidos'; // <-- Nova importação
+import MinhaConta from './pages/MinhaConta';
+import MeusPedidos from './pages/MeusPedidos';
 
 const Layout = ({ theme, toggleTheme }) => (
   <>
@@ -54,20 +54,23 @@ function App() {
       <Routes>
         <Route path="/login" element={<Login />} />
 
-        <Route path="/" element={<PrivateRoute><Layout theme={theme} toggleTheme={toggleTheme} /></PrivateRoute>}>
-          
+        {/* Layout publico — acessivel sem login */}
+        <Route path="/" element={<Layout theme={theme} toggleTheme={toggleTheme} />}>
+
           <Route index element={<Home />} />
 
-          {/* Rotas Administrativas (Funcionários) */}
+          {/* Catalogo publico */}
+          <Route path="produtos" element={<ProdutosList />} />
+
+          {/* Rotas Administrativas (Funcionarios) */}
           <Route path="clientes" element={<PrivateRoute allowedRoles={['funcionario']}><ClientesList /></PrivateRoute>} />
-          <Route path="produtos" element={<PrivateRoute allowedRoles={['funcionario']}><ProdutosList /></PrivateRoute>} />
           <Route path="vendas" element={<PrivateRoute allowedRoles={['funcionario']}><VendasList /></PrivateRoute>} />
           <Route path="vendas/nova" element={<PrivateRoute allowedRoles={['funcionario']}><NovaVenda /></PrivateRoute>} />
 
-          {/* Novas Rotas do Cliente */}
+          {/* Rotas do Cliente */}
           <Route path="minha-conta" element={<PrivateRoute allowedRoles={['cliente']}><MinhaConta /></PrivateRoute>} />
           <Route path="meus-pedidos" element={<PrivateRoute allowedRoles={['cliente']}><MeusPedidos /></PrivateRoute>} />
-          
+
         </Route>
       </Routes>
     </Router>
