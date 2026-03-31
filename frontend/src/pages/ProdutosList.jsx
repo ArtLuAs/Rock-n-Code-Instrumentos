@@ -6,26 +6,32 @@ import { api } from '../services/api';
 const TIPOS = ['guitarra', 'violao', 'baixo'];
 
 const PRODUTO_VAZIO = {
-  id: null,
-  nome: '',
-  tipo: '',
-  marca: '',
-  preco: '',
-  quantidade: '',
-  categoria: '',
-  fabricadoEmMari: false,
+  id: null, nome: '', tipo: '', marca: '', preco: '',
+  quantidade: '', categoria: '', fabricadoEmMari: false,
 };
 
 const ProdutosList = () => {
-  const { theme } = useOutletContext();
+  const outletCtx = useOutletContext();
+  const theme = outletCtx?.theme || 'light';
+
+  const userRole = localStorage.getItem('auth-role');
+  const isFuncionario = userRole === 'funcionario';
+
   const [produtos, setProdutos] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [alerta, setAlerta] = useState({ show: false, variant: '', message: '' });
 
+  // Filtros
+  const [busca, setBusca] = useState('');
+  const [precoMin, setPrecoMin] = useState('');
+  const [precoMax, setPrecoMax] = useState('');
   const [tiposFiltro, setTiposFiltro] = useState([]);
+  const [somenteMari, setSomenteMari] = useState(false);
   const [somenteStock, setSomenteStock] = useState(false);
+  const [estoqueBaixo, setEstoqueBaixo] = useState(false);
   const [sortBy, setSortBy] = useState('id-asc');
 
+  // Modais (só para funcionário)
   const [showFormModal, setShowFormModal] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [currentProduto, setCurrentProduto] = useState(PRODUTO_VAZIO);
@@ -39,30 +45,18 @@ const ProdutosList = () => {
 
   const carregarProdutos = async () => {
     setIsLoading(true);
-    try {
-      setProdutos(await api.get('/produtos'));
-    } catch {
-      mostrarAlerta('danger', 'Erro ao carregar os dados.');
-    } finally {
-      setIsLoading(false);
-    }
+    try { setProdutos(await api.get('/produtos')); }
+    catch { mostrarAlerta('danger', 'Erro ao carregar os dados.'); }
+    finally { setIsLoading(false); }
   };
 
   useEffect(() => { carregarProdutos(); }, []);
 
   const handleCloseForm = () => setShowFormModal(false);
-  const handleShowNew = () => {
-    setIsEditing(false);
-    setCurrentProduto(PRODUTO_VAZIO);
-    setShowFormModal(true);
-  };
-  const handleShowEdit = (produto) => {
-    setIsEditing(true);
-    setCurrentProduto({ ...PRODUTO_VAZIO, ...produto });
-    setShowFormModal(true);
-  };
+  const handleShowNew = () => { setIsEditing(false); setCurrentProduto(PRODUTO_VAZIO); setShowFormModal(true); };
+  const handleShowEdit = (p) => { setIsEditing(true); setCurrentProduto({ ...PRODUTO_VAZIO, ...p }); setShowFormModal(true); };
   const handleCloseDelete = () => setShowDeleteModal(false);
-  const handleShowDelete = (produto) => { setProdutoToDelete(produto); setShowDeleteModal(true); };
+  const handleShowDelete = (p) => { setProdutoToDelete(p); setShowDeleteModal(true); };
 
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
@@ -71,38 +65,37 @@ const ProdutosList = () => {
 
   const handleSave = async () => {
     if (!currentProduto.nome || !currentProduto.tipo || !currentProduto.marca) {
-      mostrarAlerta('warning', 'Nome, Tipo e Marca s\u00e3o obrigat\u00f3rios.');
-      return;
+      mostrarAlerta('warning', 'Nome, Tipo e Marca são obrigatórios.'); return;
     }
     try {
       if (isEditing) await api.put(`/produtos/${currentProduto.id}`, currentProduto);
       else await api.post('/produtos', currentProduto);
       mostrarAlerta('success', 'Produto salvo com sucesso!');
-      handleCloseForm();
-      carregarProdutos();
-    } catch (err) {
-      mostrarAlerta('danger', `Erro ao salvar: ${err.message}`);
-    }
+      handleCloseForm(); carregarProdutos();
+    } catch (err) { mostrarAlerta('danger', `Erro ao salvar: ${err.message}`); }
   };
 
   const handleDelete = async () => {
     try {
       await api.delete(`/produtos/${produtoToDelete.id}`);
       mostrarAlerta('success', 'Produto eliminado!');
-      handleCloseDelete();
-      carregarProdutos();
+      handleCloseDelete(); carregarProdutos();
     } catch (err) { mostrarAlerta('danger', `Erro: ${err.message}`); }
   };
 
-  const toggleTipo = (tipo) => {
+  const toggleTipo = (tipo) =>
     setTiposFiltro(prev => prev.includes(tipo) ? prev.filter(t => t !== tipo) : [...prev, tipo]);
-  };
 
   const produtosFiltrados = produtos
     .filter(p => {
+      const matchNome  = busca.trim() === '' || p.nome.toLowerCase().includes(busca.toLowerCase());
       const matchTipo  = tiposFiltro.length === 0 || tiposFiltro.includes(p.tipo);
+      const matchMin   = precoMin === '' || parseFloat(p.preco) >= parseFloat(precoMin);
+      const matchMax   = precoMax === '' || parseFloat(p.preco) <= parseFloat(precoMax);
+      const matchMari  = !somenteMari || p.fabricadoEmMari;
       const matchStock = somenteStock ? parseInt(p.quantidade) > 0 : true;
-      return matchTipo && matchStock;
+      const matchBaixo = !estoqueBaixo || parseInt(p.quantidade) < 5;
+      return matchNome && matchTipo && matchMin && matchMax && matchMari && matchStock && matchBaixo;
     })
     .sort((a, b) => {
       if (sortBy === 'nome-asc')   return a.nome.localeCompare(b.nome);
@@ -122,16 +115,59 @@ const ProdutosList = () => {
       )}
 
       <Row className="mb-3 align-items-center">
-        <Col md={4}><h2>Cat\u00e1logo de Produtos</h2></Col>
+        <Col md={4}><h2>Catálogo de Produtos</h2></Col>
         <Col md={8} className="text-end">
-          <Button variant="success" onClick={handleShowNew} disabled={isLoading}>+ Adicionar</Button>
+          {isFuncionario && (
+            <Button variant="success" onClick={handleShowNew} disabled={isLoading}>+ Adicionar</Button>
+          )}
         </Col>
       </Row>
 
+      {/* Painel de filtros */}
       <div className="p-3 mb-4 rounded border" style={{ backgroundColor: theme === 'dark' ? '#212529' : '#f8f9fa' }}>
-        <Row>
-          <Col lg={8}>
-            <div className="mb-2 fw-bold">Filtrar por Tipo:</div>
+        <Row className="g-3">
+
+          {/* Busca por nome */}
+          <Col md={4}>
+            <Form.Label className="fw-bold">Buscar por nome:</Form.Label>
+            <Form.Control
+              type="text" placeholder="Ex: Fender..."
+              value={busca} onChange={e => setBusca(e.target.value)}
+            />
+          </Col>
+
+          {/* Faixa de preço */}
+          <Col md={4}>
+            <Form.Label className="fw-bold">Faixa de preço (R$):</Form.Label>
+            <Row>
+              <Col>
+                <Form.Control type="number" placeholder="Mín" min="0" step="0.01"
+                  value={precoMin} onChange={e => setPrecoMin(e.target.value)} />
+              </Col>
+              <Col xs="auto" className="d-flex align-items-center px-0">—</Col>
+              <Col>
+                <Form.Control type="number" placeholder="Máx" min="0" step="0.01"
+                  value={precoMax} onChange={e => setPrecoMax(e.target.value)} />
+              </Col>
+            </Row>
+          </Col>
+
+          {/* Ordenar */}
+          <Col md={4}>
+            <Form.Label className="fw-bold">Ordenar por:</Form.Label>
+            <Form.Select value={sortBy} onChange={e => setSortBy(e.target.value)}>
+              <option value="id-asc">ID (Crescente)</option>
+              <option value="id-desc">ID (Decrescente)</option>
+              <option value="nome-asc">Nome (A-Z)</option>
+              <option value="nome-desc">Nome (Z-A)</option>
+              <option value="preco-asc">Preço (Menor)</option>
+              <option value="preco-desc">Preço (Maior)</option>
+            </Form.Select>
+          </Col>
+
+          {/* Filtros de tipo */}
+          <Col md={6}>
+            <div className="fw-bold mb-2">Filtrar por Tipo:</div>
             <div className="d-flex flex-wrap gap-3">
               {TIPOS.map(tipo => (
                 <Form.Check key={tipo} type="checkbox" label={tipo}
@@ -139,22 +175,21 @@ const ProdutosList = () => {
                   onChange={() => toggleTipo(tipo)} />
               ))}
             </div>
-            <Form.Check type="switch" id="stock-switch" label="Mostrar apenas em stock"
-              className="mt-3 text-primary fw-bold"
-              checked={somenteStock} onChange={(e) => setSomenteStock(e.target.checked)} />
           </Col>
-          <Col lg={4} className="mt-3 mt-lg-0 d-flex align-items-end">
-            <Form.Group className="w-100">
-              <Form.Label className="fw-bold">Ordenar por:</Form.Label>
-              <Form.Select value={sortBy} onChange={(e) => setSortBy(e.target.value)}>
-                <option value="id-asc">ID (Crescente)</option>
-                <option value="id-desc">ID (Decrescente)</option>
-                <option value="nome-asc">Ordem Alfab\u00e9tica (A-Z)</option>
-                <option value="nome-desc">Ordem Alfab\u00e9tica (Z-A)</option>
-                <option value="preco-desc">Pre\u00e7o (Maior para Menor)</option>
-                <option value="preco-asc">Pre\u00e7o (Menor para Maior)</option>
-              </Form.Select>
-            </Form.Group>
+
+          {/* Switches */}
+          <Col md={6} className="d-flex flex-column justify-content-end gap-2">
+            <Form.Check type="switch" id="mari-filter" label="🎸 Fabricados em Mari"
+              checked={somenteMari} onChange={e => setSomenteMari(e.target.checked)} />
+            <Form.Check type="switch" id="stock-switch" label="Mostrar apenas em stock"
+              className="text-primary"
+              checked={somenteStock} onChange={e => setSomenteStock(e.target.checked)} />
+            {isFuncionario && (
+              <Form.Check type="switch" id="baixo-switch"
+                label="⚠️ Estoque baixo (menos de 5 unidades)"
+                className="text-danger fw-bold"
+                checked={estoqueBaixo} onChange={e => setEstoqueBaixo(e.target.checked)} />
+            )}
           </Col>
         </Row>
       </div>
@@ -163,38 +198,46 @@ const ProdutosList = () => {
         <thead>
           <tr>
             <th>ID</th><th>Nome</th><th>Tipo</th><th>Marca</th>
-            <th>Categoria</th><th>Pre\u00e7o</th><th>Qtd</th><th>Mari?</th><th>A\u00e7\u00f5es</th>
+            <th>Categoria</th><th>Preço</th><th>Qtd</th><th>Mari?</th>
+            {isFuncionario && <th>Ações</th>}
           </tr>
         </thead>
         <tbody>
           {isLoading ? (
-            <tr><td colSpan="9" className="text-center">A carregar...</td></tr>
+            <tr><td colSpan={isFuncionario ? 9 : 8} className="text-center">A carregar...</td></tr>
           ) : produtosFiltrados.length === 0 ? (
-            <tr><td colSpan="9" className="text-center">Nenhum produto encontrado.</td></tr>
+            <tr><td colSpan={isFuncionario ? 9 : 8} className="text-center">Nenhum produto encontrado.</td></tr>
           ) : (
-            produtosFiltrados.map(produto => (
-              <tr key={produto.id}>
-                <td>{produto.id}</td>
-                <td>{produto.nome}</td>
-                <td>{produto.tipo}</td>
-                <td>{produto.marca}</td>
-                <td>{produto.categoria}</td>
-                <td>R$ {Number(produto.preco).toFixed(2)}</td>
-                <td>{produto.quantidade}</td>
-                <td>{produto.fabricadoEmMari
-                  ? <Badge bg="success">Sim</Badge>
-                  : <Badge bg="secondary">N\u00e3o</Badge>}
-                </td>
+            produtosFiltrados.map(p => (
+              <tr key={p.id}>
+                <td>{p.id}</td>
+                <td>{p.nome}</td>
+                <td>{p.tipo}</td>
+                <td>{p.marca}</td>
+                <td>{p.categoria}</td>
+                <td>R$ {Number(p.preco).toFixed(2)}</td>
                 <td>
-                  <Button variant="primary" size="sm" className="me-2" onClick={() => handleShowEdit(produto)}>Editar</Button>
-                  <Button variant="danger" size="sm" onClick={() => handleShowDelete(produto)}>Eliminar</Button>
+                  {parseInt(p.quantidade) < 5
+                    ? <span className="text-danger fw-bold">{p.quantidade} ⚠️</span>
+                    : p.quantidade}
                 </td>
+                <td>{p.fabricadoEmMari
+                  ? <Badge bg="success">Sim</Badge>
+                  : <Badge bg="secondary">Não</Badge>}
+                </td>
+                {isFuncionario && (
+                  <td>
+                    <Button variant="primary" size="sm" className="me-2" onClick={() => handleShowEdit(p)}>Editar</Button>
+                    <Button variant="danger" size="sm" onClick={() => handleShowDelete(p)}>Eliminar</Button>
+                  </td>
+                )}
               </tr>
             ))
           )}
         </tbody>
       </Table>
 
+      {/* Modal Formulário (só funcionário) */}
       <Modal show={showFormModal} onHide={handleCloseForm}>
         <Modal.Header closeButton>
           <Modal.Title>{isEditing ? 'Editar Produto' : 'Novo Produto'}</Modal.Title>
@@ -224,12 +267,12 @@ const ProdutosList = () => {
             </Row>
             <Form.Group className="mb-3">
               <Form.Label>Categoria</Form.Label>
-              <Form.Control type="text" name="categoria" placeholder="ex: el\u00e9trico, ac\u00fastico..." value={currentProduto.categoria} onChange={handleChange} />
+              <Form.Control type="text" name="categoria" placeholder="ex: elétrico, acústico..." value={currentProduto.categoria} onChange={handleChange} />
             </Form.Group>
             <Row>
               <Col md={6}>
                 <Form.Group className="mb-3">
-                  <Form.Label>Pre\u00e7o (R$)</Form.Label>
+                  <Form.Label>Preço (R$)</Form.Label>
                   <Form.Control type="number" step="0.01" name="preco" value={currentProduto.preco} onChange={handleChange} />
                 </Form.Group>
               </Col>
@@ -240,14 +283,8 @@ const ProdutosList = () => {
                 </Form.Group>
               </Col>
             </Row>
-            <Form.Check
-              type="switch"
-              id="mari-switch"
-              label="\ud83c\udfb8 Fabricado em Mari"
-              name="fabricadoEmMari"
-              checked={currentProduto.fabricadoEmMari}
-              onChange={handleChange}
-            />
+            <Form.Check type="switch" id="mari-switch" label="🎸 Fabricado em Mari"
+              name="fabricadoEmMari" checked={currentProduto.fabricadoEmMari} onChange={handleChange} />
           </Form>
         </Modal.Body>
         <Modal.Footer>
@@ -256,9 +293,10 @@ const ProdutosList = () => {
         </Modal.Footer>
       </Modal>
 
+      {/* Modal Delete */}
       <Modal show={showDeleteModal} onHide={handleCloseDelete}>
-        <Modal.Header closeButton><Modal.Title>Aten\u00e7\u00e3o</Modal.Title></Modal.Header>
-        <Modal.Body>Confirma a exclus\u00e3o de <strong>{produtoToDelete?.nome}</strong>?</Modal.Body>
+        <Modal.Header closeButton><Modal.Title>Atenção</Modal.Title></Modal.Header>
+        <Modal.Body>Confirma a exclusão de <strong>{produtoToDelete?.nome}</strong>?</Modal.Body>
         <Modal.Footer>
           <Button variant="secondary" onClick={handleCloseDelete}>Cancelar</Button>
           <Button variant="danger" onClick={handleDelete}>Confirmar</Button>
