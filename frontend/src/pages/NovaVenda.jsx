@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Container, Row, Col, Form, Button, Table, Card, Alert, Badge } from 'react-bootstrap';
+import { Container, Row, Col, Form, Button, Table, Card, Alert } from 'react-bootstrap';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../services/api';
 
@@ -8,19 +8,18 @@ const FORMAS_PAGAMENTO = ['dinheiro', 'cartao_credito', 'cartao_debito', 'pix'];
 const NovaVenda = () => {
   const navigate = useNavigate();
 
-  const authRole = localStorage.getItem('auth-role');
-  const authId   = parseInt(localStorage.getItem('auth-id') || '0');
+  const [clientes, setClientes]           = useState([]);
+  const [produtos, setProdutos]           = useState([]);
+  const [funcionarios, setFuncionarios]   = useState([]);
+  const [isLoading, setIsLoading]         = useState(false);
+  const [alerta, setAlerta]               = useState({ show: false, variant: '', message: '' });
 
-  const [clientes, setClientes]       = useState([]);
-  const [produtos, setProdutos]       = useState([]);
-  const [isLoading, setIsLoading]     = useState(false);
-  const [alerta, setAlerta]           = useState({ show: false, variant: '', message: '' });
-
-  const [selectedCliente, setSelectedCliente]   = useState('');
-  const [formaPagamento, setFormaPagamento]     = useState('dinheiro');
-  const [selectedProduto, setSelectedProduto]   = useState('');
-  const [quantidade, setQuantidade]             = useState(1);
-  const [carrinho, setCarrinho]                 = useState([]);
+  const [selectedCliente, setSelectedCliente]         = useState('');
+  const [selectedFuncionario, setSelectedFuncionario] = useState('');
+  const [formaPagamento, setFormaPagamento]           = useState('dinheiro');
+  const [selectedProduto, setSelectedProduto]         = useState('');
+  const [quantidade, setQuantidade]                   = useState(1);
+  const [carrinho, setCarrinho]                       = useState([]);
 
   const mostrarAlerta = (variant, message) => {
     setAlerta({ show: true, variant, message });
@@ -28,19 +27,17 @@ const NovaVenda = () => {
   };
 
   useEffect(() => {
-    if (authRole !== 'funcionario') {
-      mostrarAlerta('warning', 'Apenas funcionários podem registrar vendas.');
-      return;
-    }
     const carregar = async () => {
       setIsLoading(true);
       try {
-        const [clientesData, produtosData] = await Promise.all([
+        const [clientesData, produtosData, funcionariosData] = await Promise.all([
           api.get('/clientes'),
           api.get('/produtos'),
+          api.get('/funcionarios'),
         ]);
         setClientes(clientesData);
         setProdutos(produtosData.filter(p => parseInt(p.quantidade) > 0));
+        setFuncionarios(funcionariosData);
       } catch {
         mostrarAlerta('danger', 'Erro ao carregar os dados do formulário.');
       } finally {
@@ -48,14 +45,13 @@ const NovaVenda = () => {
       }
     };
     carregar();
-  }, [authRole]);
+  }, []);
 
   const handleAddProduto = () => {
     if (!selectedProduto || quantidade <= 0) return;
     const produto = produtos.find(p => p.id === parseInt(selectedProduto));
     if (!produto) return;
 
-    // Se já está no carrinho, incrementa quantidade
     const idx = carrinho.findIndex(i => i.id === produto.id);
     if (idx >= 0) {
       const novo = [...carrinho];
@@ -82,21 +78,21 @@ const NovaVenda = () => {
       mostrarAlerta('warning', 'Selecione um cliente.');
       return;
     }
+    if (!selectedFuncionario) {
+      mostrarAlerta('warning', 'Selecione o funcionário responsável.');
+      return;
+    }
     if (carrinho.length === 0) {
       mostrarAlerta('warning', 'Adicione pelo menos um produto.');
       return;
     }
-    if (!authId) {
-      mostrarAlerta('danger', 'Sessão inválida. Faça login novamente.');
-      return;
-    }
 
     const payload = {
-      clienteId:     parseInt(selectedCliente),
-      funcionarioId: authId,
+      clienteId:      parseInt(selectedCliente),
+      funcionarioId:  parseInt(selectedFuncionario),
       formaPagamento: formaPagamento,
-      instrumentos:  carrinho.map(i => i.id),
-      quantidades:   carrinho.map(i => i.quantidade),
+      instrumentos:   carrinho.map(i => i.id),
+      quantidades:    carrinho.map(i => i.quantidade),
     };
 
     setIsLoading(true);
@@ -112,17 +108,6 @@ const NovaVenda = () => {
 
   const totalVenda = carrinho.reduce((acc, item) => acc + item.subtotal, 0);
 
-  if (authRole !== 'funcionario') {
-    return (
-      <Container className="mt-5 text-center">
-        <Alert variant="warning">
-          <strong>Acesso negado.</strong> Apenas funcionários podem registrar vendas.
-        </Alert>
-        <Button variant="primary" onClick={() => navigate('/')}>Voltar</Button>
-      </Container>
-    );
-  }
-
   return (
     <Container className="mt-4">
       {alerta.show && (
@@ -133,9 +118,6 @@ const NovaVenda = () => {
 
       <Row className="mb-3 align-items-center">
         <Col><h2>Nova Venda</h2></Col>
-        <Col className="text-end">
-          <small className="text-muted">Vendedor ID: <Badge bg="secondary">{authId}</Badge></small>
-        </Col>
       </Row>
 
       <Row>
@@ -148,6 +130,14 @@ const NovaVenda = () => {
                 <Form.Select value={selectedCliente} onChange={e => setSelectedCliente(e.target.value)} disabled={isLoading}>
                   <option value="">Selecione o cliente...</option>
                   {clientes.map(c => <option key={c.id} value={c.id}>{c.nome} — {c.cpf}</option>)}
+                </Form.Select>
+              </Form.Group>
+
+              <Form.Group className="mb-3">
+                <Form.Label>Funcionário Responsável *</Form.Label>
+                <Form.Select value={selectedFuncionario} onChange={e => setSelectedFuncionario(e.target.value)} disabled={isLoading}>
+                  <option value="">Selecione o funcionário...</option>
+                  {funcionarios.map(f => <option key={f.id} value={f.id}>{f.nome}</option>)}
                 </Form.Select>
               </Form.Group>
 
@@ -226,7 +216,7 @@ const NovaVenda = () => {
                 size="lg"
                 className="w-100 mt-3"
                 onClick={handleConcluirVenda}
-                disabled={carrinho.length === 0 || !selectedCliente || isLoading}
+                disabled={carrinho.length === 0 || !selectedCliente || !selectedFuncionario || isLoading}
               >
                 {isLoading ? 'A processar...' : '✔ Concluir Venda'}
               </Button>
