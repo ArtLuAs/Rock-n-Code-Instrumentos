@@ -302,7 +302,7 @@ int main() {
     });
 
     // ==================================================
-    // GET /api/clientes/:id   <-- NOVO: Minha Conta
+    // GET /api/clientes/:id
     // ==================================================
     svr.Get("/api/clientes/(\\d+)", [conn](const httplib::Request& req, httplib::Response& res) {
         string id = req.matches[1];
@@ -423,7 +423,7 @@ int main() {
         if (clienteIdStr.empty()) { errResp(res, "clienteId e obrigatorio"); return; }
         const char* p[1] = {clienteIdStr.c_str()};
         PGresult* result = PQexecParams(conn,
-            "SELECT p.id, p.data, p.forma_pagamento, p.status_pagamento, p.desconto, p.total "
+            "SELECT p.id, p.data, p.forma_pagamento::text, p.status_pagamento::text, p.desconto, p.total "
             "FROM pedidos p "
             "WHERE p.cliente_id = $1::integer "
             "ORDER BY p.data DESC, p.id DESC;",
@@ -449,7 +449,7 @@ int main() {
     svr.Get("/api/vendas", [conn](const httplib::Request&, httplib::Response& res) {
         PGresult* result = PQexec(conn,
             "SELECT p.id, c.nome AS cliente, c.id AS cliente_id, f.nome AS vendedor, "
-            "p.data, p.forma_pagamento, p.status_pagamento, p.desconto, p.total "
+            "p.data, p.forma_pagamento::text, p.status_pagamento::text, p.desconto, p.total "
             "FROM pedidos p "
             "JOIN clientes c     ON c.id = p.cliente_id "
             "JOIN funcionarios f ON f.id = p.funcionario_id "
@@ -509,12 +509,13 @@ int main() {
             string cliStr  = to_string(clienteId);
             string funcStr = to_string(funcionarioId);
 
-            // Ordem: (clienteId, funcionarioId, instrumentos[], quantidades[], forma_pgto, OUT pedidoId)
+            // Passa forma_pagamento como VARCHAR -- a procedure/INSERT faz o cast para o ENUM
+            // Isso garante compatibilidade mesmo sem rodar a migration dos ENUMs
             const char* p[5] = {cliStr.c_str(), funcStr.c_str(),
                                 pgInst.c_str(), pgQtd.c_str(), formaPgto.c_str()};
             PGresult* result = PQexecParams(conn,
                 "CALL efetuar_compra($1::integer,$2::integer,"
-                "$3::integer[],$4::integer[],$5::forma_pgto,NULL)",
+                "$3::integer[],$4::integer[],$5::varchar,NULL)",
                 5, nullptr, p, nullptr, nullptr, 0);
 
             if (PQresultStatus(result) == PGRES_COMMAND_OK || PQresultStatus(result) == PGRES_TUPLES_OK) {
