@@ -33,14 +33,12 @@ static void errResp(httplib::Response& res, const string& msg, int status = 400)
     res.status = status;
 }
 
-// Aceita campo como string ou number, retorna sempre string
 static string strVal(const json& b, const string& key, const string& def = "") {
     if (!b.contains(key) || b[key].is_null()) return def;
     if (b[key].is_string()) return b[key].get<string>();
     return b[key].dump();
 }
 
-// Aceita campo como string ou number, retorna sempre int
 static int intVal(const json& b, const string& key, int def = 0) {
     if (!b.contains(key) || b[key].is_null()) return def;
     if (b[key].is_number()) return b[key].get<int>();
@@ -90,11 +88,9 @@ int main() {
                         {"nome", PQgetvalue(r, 0, 1)},
                         {"role", "cliente"}
                     };
-                    PQclear(r);
-                    jsonResp(res, resp);
+                    PQclear(r); jsonResp(res, resp);
                 } else {
-                    PQclear(r);
-                    errResp(res, "CPF ou senha invalidos", 401);
+                    PQclear(r); errResp(res, "CPF ou senha invalidos", 401);
                 }
             } else {
                 const char* p[2] = {cpfNorm.c_str(), senha.c_str()};
@@ -108,11 +104,9 @@ int main() {
                         {"cargo", PQgetvalue(r, 0, 2)},
                         {"role",  "funcionario"}
                     };
-                    PQclear(r);
-                    jsonResp(res, resp);
+                    PQclear(r); jsonResp(res, resp);
                 } else {
-                    PQclear(r);
-                    errResp(res, "CPF ou senha invalidos", 401);
+                    PQclear(r); errResp(res, "CPF ou senha invalidos", 401);
                 }
             }
         } catch (const exception& e) {
@@ -214,8 +208,7 @@ int main() {
                 {"fabricadoEmMari", string(PQgetvalue(result, i, 7)) == "t"}
             });
         }
-        PQclear(result);
-        jsonResp(res, arr);
+        PQclear(result); jsonResp(res, arr);
     });
 
     // ==================================================
@@ -324,15 +317,15 @@ int main() {
             string cid   = strVal(b, "cidade");
             const char* p[8] = {nome.c_str(), cpf.c_str(), tel.c_str(), email.c_str(),
                                 sexo.c_str(), flam.c_str(), one.c_str(), cid.c_str()};
-            PGresult* result = PQexecParams(conn,
+            PGresult* r = PQexecParams(conn,
                 "INSERT INTO clientes (nome,cpf,telefone,email,sexo,torce_flamengo,assiste_one_piece,cidade) "
                 "VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING id",
                 8, nullptr, p, nullptr, nullptr, 0);
-            if (PQresultStatus(result) == PGRES_TUPLES_OK) {
-                json resp = {{"id", atoi(PQgetvalue(result, 0, 0))}, {"success", true}};
-                PQclear(result); jsonResp(res, resp, 201);
+            if (PQresultStatus(r) == PGRES_TUPLES_OK) {
+                json resp = {{"id", atoi(PQgetvalue(r, 0, 0))}, {"success", true}};
+                PQclear(r); jsonResp(res, resp, 201);
             } else {
-                string err = PQerrorMessage(conn); PQclear(result); errResp(res, err);
+                string err = PQerrorMessage(conn); PQclear(r); errResp(res, err);
             }
         } catch (const exception& e) { errResp(res, string("Erro: ") + e.what()); }
     });
@@ -394,17 +387,15 @@ int main() {
     });
 
     // ==================================================
-    // GET /api/vendas/me?clienteId=X  (pedidos do cliente logado)
-    // IMPORTANTE: deve ser registrado ANTES de GET /api/vendas
+    // GET /api/vendas/me?clienteId=X
+    // IMPORTANTE: registrado ANTES de GET /api/vendas
     // ==================================================
     svr.Get("/api/vendas/me", [conn](const httplib::Request& req, httplib::Response& res) {
         string clienteIdStr = req.get_param_value("clienteId");
-        if (clienteIdStr.empty()) {
-            errResp(res, "clienteId e obrigatorio"); return;
-        }
+        if (clienteIdStr.empty()) { errResp(res, "clienteId e obrigatorio"); return; }
         const char* p[1] = {clienteIdStr.c_str()};
         PGresult* result = PQexecParams(conn,
-            "SELECT p.id, p.data, p.desconto, p.total "
+            "SELECT p.id, p.data, p.forma_pagamento, p.desconto, p.total "
             "FROM pedidos p "
             "WHERE p.cliente_id = $1::integer "
             "ORDER BY p.data DESC, p.id DESC;",
@@ -413,22 +404,23 @@ int main() {
         int rows = PQntuples(result);
         for (int i = 0; i < rows; i++) {
             arr.push_back({
-                {"id",       atoi(PQgetvalue(result, i, 0))},
-                {"data",     PQgetvalue(result, i, 1)},
-                {"desconto", atof(PQgetvalue(result, i, 2))},
-                {"total",    atof(PQgetvalue(result, i, 3))}
+                {"id",             atoi(PQgetvalue(result, i, 0))},
+                {"data",           PQgetvalue(result, i, 1)},
+                {"formaPagamento", PQgetvalue(result, i, 2)},
+                {"desconto",       atof(PQgetvalue(result, i, 3))},
+                {"total",          atof(PQgetvalue(result, i, 4))}
             });
         }
         PQclear(result); jsonResp(res, arr);
     });
 
     // ==================================================
-    // GET /api/vendas  (uso do funcionario/admin)
+    // GET /api/vendas
     // ==================================================
     svr.Get("/api/vendas", [conn](const httplib::Request&, httplib::Response& res) {
         PGresult* result = PQexec(conn,
             "SELECT p.id, c.nome AS cliente, c.id AS cliente_id, f.nome AS vendedor, "
-            "p.data, p.desconto, p.total "
+            "p.data, p.forma_pagamento, p.desconto, p.total "
             "FROM pedidos p "
             "JOIN clientes c     ON c.id = p.cliente_id "
             "JOIN funcionarios f ON f.id = p.funcionario_id "
@@ -437,13 +429,14 @@ int main() {
         int rows = PQntuples(result);
         for (int i = 0; i < rows; i++) {
             arr.push_back({
-                {"id",        atoi(PQgetvalue(result, i, 0))},
-                {"cliente",   PQgetvalue(result, i, 1)},
-                {"clienteId", atoi(PQgetvalue(result, i, 2))},
-                {"vendedor",  PQgetvalue(result, i, 3)},
-                {"data",      PQgetvalue(result, i, 4)},
-                {"desconto",  atof(PQgetvalue(result, i, 5))},
-                {"total",     atof(PQgetvalue(result, i, 6))}
+                {"id",             atoi(PQgetvalue(result, i, 0))},
+                {"cliente",        PQgetvalue(result, i, 1)},
+                {"clienteId",      atoi(PQgetvalue(result, i, 2))},
+                {"vendedor",       PQgetvalue(result, i, 3)},
+                {"data",           PQgetvalue(result, i, 4)},
+                {"formaPagamento", PQgetvalue(result, i, 5)},
+                {"desconto",       atof(PQgetvalue(result, i, 6))},
+                {"total",          atof(PQgetvalue(result, i, 7))}
             });
         }
         PQclear(result); jsonResp(res, arr);
@@ -451,15 +444,16 @@ int main() {
 
     // ==================================================
     // POST /api/vendas
-    // Body: { clienteId, funcionarioId,
+    // Body: { clienteId, funcionarioId, formaPagamento,
     //         instrumentos: [id,...], quantidades: [qtd,...] }
     // ==================================================
     svr.Post("/api/vendas", [conn](const httplib::Request& req, httplib::Response& res) {
         try {
             auto b = json::parse(req.body);
 
-            int clienteId     = intVal(b, "clienteId");
-            int funcionarioId = intVal(b, "funcionarioId");
+            int    clienteId     = intVal(b, "clienteId");
+            int    funcionarioId = intVal(b, "funcionarioId");
+            string formaPgto     = strVal(b, "formaPagamento", "dinheiro");
 
             if (clienteId == 0 || funcionarioId == 0) {
                 errResp(res, "clienteId e funcionarioId sao obrigatorios"); return;
@@ -484,12 +478,12 @@ int main() {
 
             string cliStr  = to_string(clienteId);
             string funcStr = to_string(funcionarioId);
-            const char* p[4] = {cliStr.c_str(), funcStr.c_str(),
-                                pgInst.c_str(), pgQtd.c_str()};
+            const char* p[5] = {cliStr.c_str(), funcStr.c_str(),
+                                pgInst.c_str(), pgQtd.c_str(), formaPgto.c_str()};
             PGresult* result = PQexecParams(conn,
                 "CALL efetuar_compra($1::integer,$2::integer,"
-                "$3::integer[],$4::integer[],NULL)",
-                4, nullptr, p, nullptr, nullptr, 0);
+                "$3::integer[],$4::integer[],$5::varchar,NULL)",
+                5, nullptr, p, nullptr, nullptr, 0);
 
             if (PQresultStatus(result) == PGRES_COMMAND_OK || PQresultStatus(result) == PGRES_TUPLES_OK) {
                 PQclear(result);
