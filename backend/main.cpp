@@ -33,11 +33,11 @@ static void errResp(httplib::Response& res, const string& msg, int status = 400)
     res.status = status;
 }
 
-// Aceita o campo tanto como string quanto como number
+// Aceita campo como string ou number
 static string strVal(const json& b, const string& key, const string& def = "") {
     if (!b.contains(key) || b[key].is_null()) return def;
     if (b[key].is_string()) return b[key].get<string>();
-    return b[key].dump(); // number, bool -> converte para string
+    return b[key].dump();
 }
 
 // ===================== MAIN =====================
@@ -59,34 +59,160 @@ int main() {
 
     // ==================================================
     // POST /api/login
+    // Body: { "cpf": "12345678900", "senha": "1234", "tipo": "cliente" | "funcionario" }
     // ==================================================
     svr.Post("/api/login", [conn](const httplib::Request& req, httplib::Response& res) {
         try {
             auto body  = json::parse(req.body);
             string cpf = strVal(body, "cpf");
+            string senha = strVal(body, "senha");
+            string tipo  = strVal(body, "tipo", "funcionario");
+
+            // Normaliza CPF
             string cpfNorm;
             for (char c : cpf)
                 if (c != '.' && c != '-') cpfNorm += c;
 
-            const char* p[1] = {cpfNorm.c_str()};
-            PGresult* result = PQexecParams(conn,
-                "SELECT id, nome, cargo FROM funcionarios WHERE cpf=$1",
-                1, nullptr, p, nullptr, nullptr, 0);
-
-            if (PQresultStatus(result) == PGRES_TUPLES_OK && PQntuples(result) > 0) {
-                json resp = {
-                    {"id",    atoi(PQgetvalue(result, 0, 0))},
-                    {"nome",  PQgetvalue(result, 0, 1)},
-                    {"cargo", PQgetvalue(result, 0, 2)}
-                };
-                PQclear(result);
-                jsonResp(res, resp);
+            if (tipo == "cliente") {
+                const char* p[2] = {cpfNorm.c_str(), senha.c_str()};
+                PGresult* r = PQexecParams(conn,
+                    "SELECT id, nome FROM clientes WHERE cpf=$1 AND senha=$2",
+                    2, nullptr, p, nullptr, nullptr, 0);
+                if (PQresultStatus(r) == PGRES_TUPLES_OK && PQntuples(r) > 0) {
+                    json resp = {
+                        {"id",   atoi(PQgetvalue(r, 0, 0))},
+                        {"nome", PQgetvalue(r, 0, 1)},
+                        {"role", "cliente"}
+                    };
+                    PQclear(r);
+                    jsonResp(res, resp);
+                } else {
+                    PQclear(r);
+                    errResp(res, "CPF ou senha invalidos", 401);
+                }
             } else {
-                PQclear(result);
-                errResp(res, "Credenciais invalidas", 401);
+                const char* p[2] = {cpfNorm.c_str(), senha.c_str()};
+                PGresult* r = PQexecParams(conn,
+                    "SELECT id, nome, cargo FROM funcionarios WHERE cpf=$1 AND senha=$2",
+                    2, nullptr, p, nullptr, nullptr, 0);
+                if (PQresultStatus(r) == PGRES_TUPLES_OK && PQntuples(r) > 0) {
+                    json resp = {
+                        {"id",    atoi(PQgetvalue(r, 0, 0))},
+                        {"nome",  PQgetvalue(r, 0, 1)},
+                        {"cargo", PQgetvalue(r, 0, 2)},
+                        {"role",  "funcionario"}
+                    };
+                    PQclear(r);
+                    jsonResp(res, resp);
+                } else {
+                    PQclear(r);
+                    errResp(res, "CPF ou senha invalidos", 401);
+                }
             }
         } catch (const exception& e) {
             errResp(res, string("Erro: ") + e.what(), 400);
+        }
+    });
+
+    // ==================================================
+    // POST /api/registro/cliente
+    // Body: todos os campos de cliente + senha
+    // ==================================================
+    svr.Post("/api/registro/cliente", [conn](const httplib::Request& req, httplib::Response& res) {
+        try {
+            auto b       = json::parse(req.body);
+            string nome  = strVal(b, "nome");
+            string cpf   = strVal(b, "cpf");
+            string senha = strVal(b, "senha");
+            string tel   = strVal(b, "telefone");
+            string email = strVal(b, "email");
+            string sexo  = strVal(b, "sexo");
+            string cid   = strVal(b, "cidade");
+            string flam  = (b.contains("torceFlamengo")   && b["torceFlamengo"]   == true) ? "true" : "false";
+            string one   = (b.contains("assisteOnePiece") && b["assisteOnePiece"] == true) ? "true" : "false";
+
+            if (nome.empty() || cpf.empty() || senha.empty()) {
+                errResp(res, "Nome, CPF e senha sao obrigatorios");
+                return;
+            }
+
+            // Verifica se CPF já existe
+            const char* chk[1] = {cpf.c_str()};
+            PGresult* exist = PQexecParams(conn,
+                "SELECT id FROM clientes WHERE cpf=$1",
+                1, nullptr, chk, nullptr, nullptr, 0);
+            if (PQntuples(exist) > 0) {
+                PQclear(exist);
+                errResp(res, "CPF ja cadastrado", 409);
+                return;
+            }
+            PQclear(exist);
+
+            const char* p[9] = {nome.c_str(), cpf.c_str(), tel.c_str(), email.c_str(),
+                                sexo.c_str(), flam.c_str(), one.c_str(), cid.c_str(), senha.c_str()};
+            PGresult* r = PQexecParams(conn,
+                "INSERT INTO clientes (nome,cpf,telefone,email,sexo,torce_flamengo,assiste_one_piece,cidade,senha) "
+                "VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING id",
+                9, nullptr, p, nullptr, nullptr, 0);
+            if (PQresultStatus(r) == PGRES_TUPLES_OK) {
+                json resp = {{"id", atoi(PQgetvalue(r, 0, 0))}, {"success", true}};
+                PQclear(r);
+                jsonResp(res, resp, 201);
+            } else {
+                string err = PQerrorMessage(conn);
+                PQclear(r);
+                errResp(res, err);
+            }
+        } catch (const exception& e) {
+            errResp(res, string("Erro: ") + e.what());
+        }
+    });
+
+    // ==================================================
+    // POST /api/registro/funcionario
+    // Body: { nome, cpf, cargo, senha }
+    // ==================================================
+    svr.Post("/api/registro/funcionario", [conn](const httplib::Request& req, httplib::Response& res) {
+        try {
+            auto b       = json::parse(req.body);
+            string nome  = strVal(b, "nome");
+            string cpf   = strVal(b, "cpf");
+            string cargo = strVal(b, "cargo", "vendedor");
+            string senha = strVal(b, "senha");
+
+            if (nome.empty() || cpf.empty() || senha.empty()) {
+                errResp(res, "Nome, CPF e senha sao obrigatorios");
+                return;
+            }
+
+            // Verifica se CPF já existe
+            const char* chk[1] = {cpf.c_str()};
+            PGresult* exist = PQexecParams(conn,
+                "SELECT id FROM funcionarios WHERE cpf=$1",
+                1, nullptr, chk, nullptr, nullptr, 0);
+            if (PQntuples(exist) > 0) {
+                PQclear(exist);
+                errResp(res, "CPF ja cadastrado", 409);
+                return;
+            }
+            PQclear(exist);
+
+            const char* p[4] = {nome.c_str(), cpf.c_str(), cargo.c_str(), senha.c_str()};
+            PGresult* r = PQexecParams(conn,
+                "INSERT INTO funcionarios (nome, cpf, cargo, senha) "
+                "VALUES ($1,$2,$3,$4) RETURNING id",
+                4, nullptr, p, nullptr, nullptr, 0);
+            if (PQresultStatus(r) == PGRES_TUPLES_OK) {
+                json resp = {{"id", atoi(PQgetvalue(r, 0, 0))}, {"success", true}};
+                PQclear(r);
+                jsonResp(res, resp, 201);
+            } else {
+                string err = PQerrorMessage(conn);
+                PQclear(r);
+                errResp(res, err);
+            }
+        } catch (const exception& e) {
+            errResp(res, string("Erro: ") + e.what());
         }
     });
 
@@ -128,7 +254,6 @@ int main() {
             string qtd   = strVal(b, "quantidade", "0");
             string cat   = strVal(b, "categoria", "outros");
             string mari  = (b.contains("fabricadoEmMari") && b["fabricadoEmMari"] == true) ? "true" : "false";
-
             const char* p[7] = {nome.c_str(), tipo.c_str(), marca.c_str(),
                                 preco.c_str(), qtd.c_str(), cat.c_str(), mari.c_str()};
             PGresult* result = PQexecParams(conn,
@@ -163,7 +288,6 @@ int main() {
             string qtd   = strVal(b, "quantidade", "0");
             string cat   = strVal(b, "categoria", "outros");
             string mari  = (b.contains("fabricadoEmMari") && b["fabricadoEmMari"] == true) ? "true" : "false";
-
             const char* p[8] = {nome.c_str(), tipo.c_str(), marca.c_str(),
                                 preco.c_str(), qtd.c_str(), cat.c_str(), mari.c_str(), id.c_str()};
             PGresult* result = PQexecParams(conn,
@@ -231,7 +355,6 @@ int main() {
             string flam  = (b.contains("torceFlamengo")   && b["torceFlamengo"]   == true) ? "true" : "false";
             string one   = (b.contains("assisteOnePiece") && b["assisteOnePiece"] == true) ? "true" : "false";
             string cid   = strVal(b, "cidade");
-
             const char* p[8] = {nome.c_str(), cpf.c_str(), tel.c_str(), email.c_str(),
                                 sexo.c_str(), flam.c_str(), one.c_str(), cid.c_str()};
             PGresult* result = PQexecParams(conn,
@@ -267,7 +390,6 @@ int main() {
             string flam  = (b.contains("torceFlamengo")   && b["torceFlamengo"]   == true) ? "true" : "false";
             string one   = (b.contains("assisteOnePiece") && b["assisteOnePiece"] == true) ? "true" : "false";
             string cid   = strVal(b, "cidade");
-
             const char* p[9] = {nome.c_str(), cpf.c_str(), tel.c_str(), email.c_str(),
                                 sexo.c_str(), flam.c_str(), one.c_str(), cid.c_str(), id.c_str()};
             PGresult* result = PQexecParams(conn,
