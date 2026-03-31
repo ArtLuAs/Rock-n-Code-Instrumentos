@@ -33,11 +33,19 @@ static void errResp(httplib::Response& res, const string& msg, int status = 400)
     res.status = status;
 }
 
-// Aceita campo como string ou number
+// Aceita campo como string ou number, retorna sempre string
 static string strVal(const json& b, const string& key, const string& def = "") {
     if (!b.contains(key) || b[key].is_null()) return def;
     if (b[key].is_string()) return b[key].get<string>();
     return b[key].dump();
+}
+
+// Aceita campo como string ou number, retorna sempre int
+static int intVal(const json& b, const string& key, int def = 0) {
+    if (!b.contains(key) || b[key].is_null()) return def;
+    if (b[key].is_number()) return b[key].get<int>();
+    if (b[key].is_string()) return atoi(b[key].get<string>().c_str());
+    return def;
 }
 
 // ===================== MAIN =====================
@@ -59,16 +67,14 @@ int main() {
 
     // ==================================================
     // POST /api/login
-    // Body: { "cpf": "12345678900", "senha": "1234", "tipo": "cliente" | "funcionario" }
     // ==================================================
     svr.Post("/api/login", [conn](const httplib::Request& req, httplib::Response& res) {
         try {
-            auto body  = json::parse(req.body);
-            string cpf = strVal(body, "cpf");
+            auto body    = json::parse(req.body);
+            string cpf   = strVal(body, "cpf");
             string senha = strVal(body, "senha");
             string tipo  = strVal(body, "tipo", "funcionario");
 
-            // Normaliza CPF
             string cpfNorm;
             for (char c : cpf)
                 if (c != '.' && c != '-') cpfNorm += c;
@@ -116,7 +122,6 @@ int main() {
 
     // ==================================================
     // POST /api/registro/cliente
-    // Body: todos os campos de cliente + senha
     // ==================================================
     svr.Post("/api/registro/cliente", [conn](const httplib::Request& req, httplib::Response& res) {
         try {
@@ -132,20 +137,12 @@ int main() {
             string one   = (b.contains("assisteOnePiece") && b["assisteOnePiece"] == true) ? "true" : "false";
 
             if (nome.empty() || cpf.empty() || senha.empty()) {
-                errResp(res, "Nome, CPF e senha sao obrigatorios");
-                return;
+                errResp(res, "Nome, CPF e senha sao obrigatorios"); return;
             }
-
-            // Verifica se CPF já existe
             const char* chk[1] = {cpf.c_str()};
-            PGresult* exist = PQexecParams(conn,
-                "SELECT id FROM clientes WHERE cpf=$1",
+            PGresult* exist = PQexecParams(conn, "SELECT id FROM clientes WHERE cpf=$1",
                 1, nullptr, chk, nullptr, nullptr, 0);
-            if (PQntuples(exist) > 0) {
-                PQclear(exist);
-                errResp(res, "CPF ja cadastrado", 409);
-                return;
-            }
+            if (PQntuples(exist) > 0) { PQclear(exist); errResp(res, "CPF ja cadastrado", 409); return; }
             PQclear(exist);
 
             const char* p[9] = {nome.c_str(), cpf.c_str(), tel.c_str(), email.c_str(),
@@ -156,21 +153,15 @@ int main() {
                 9, nullptr, p, nullptr, nullptr, 0);
             if (PQresultStatus(r) == PGRES_TUPLES_OK) {
                 json resp = {{"id", atoi(PQgetvalue(r, 0, 0))}, {"success", true}};
-                PQclear(r);
-                jsonResp(res, resp, 201);
+                PQclear(r); jsonResp(res, resp, 201);
             } else {
-                string err = PQerrorMessage(conn);
-                PQclear(r);
-                errResp(res, err);
+                string err = PQerrorMessage(conn); PQclear(r); errResp(res, err);
             }
-        } catch (const exception& e) {
-            errResp(res, string("Erro: ") + e.what());
-        }
+        } catch (const exception& e) { errResp(res, string("Erro: ") + e.what()); }
     });
 
     // ==================================================
     // POST /api/registro/funcionario
-    // Body: { nome, cpf, cargo, senha }
     // ==================================================
     svr.Post("/api/registro/funcionario", [conn](const httplib::Request& req, httplib::Response& res) {
         try {
@@ -181,39 +172,25 @@ int main() {
             string senha = strVal(b, "senha");
 
             if (nome.empty() || cpf.empty() || senha.empty()) {
-                errResp(res, "Nome, CPF e senha sao obrigatorios");
-                return;
+                errResp(res, "Nome, CPF e senha sao obrigatorios"); return;
             }
-
-            // Verifica se CPF já existe
             const char* chk[1] = {cpf.c_str()};
-            PGresult* exist = PQexecParams(conn,
-                "SELECT id FROM funcionarios WHERE cpf=$1",
+            PGresult* exist = PQexecParams(conn, "SELECT id FROM funcionarios WHERE cpf=$1",
                 1, nullptr, chk, nullptr, nullptr, 0);
-            if (PQntuples(exist) > 0) {
-                PQclear(exist);
-                errResp(res, "CPF ja cadastrado", 409);
-                return;
-            }
+            if (PQntuples(exist) > 0) { PQclear(exist); errResp(res, "CPF ja cadastrado", 409); return; }
             PQclear(exist);
 
             const char* p[4] = {nome.c_str(), cpf.c_str(), cargo.c_str(), senha.c_str()};
             PGresult* r = PQexecParams(conn,
-                "INSERT INTO funcionarios (nome, cpf, cargo, senha) "
-                "VALUES ($1,$2,$3,$4) RETURNING id",
+                "INSERT INTO funcionarios (nome, cpf, cargo, senha) VALUES ($1,$2,$3,$4) RETURNING id",
                 4, nullptr, p, nullptr, nullptr, 0);
             if (PQresultStatus(r) == PGRES_TUPLES_OK) {
                 json resp = {{"id", atoi(PQgetvalue(r, 0, 0))}, {"success", true}};
-                PQclear(r);
-                jsonResp(res, resp, 201);
+                PQclear(r); jsonResp(res, resp, 201);
             } else {
-                string err = PQerrorMessage(conn);
-                PQclear(r);
-                errResp(res, err);
+                string err = PQerrorMessage(conn); PQclear(r); errResp(res, err);
             }
-        } catch (const exception& e) {
-            errResp(res, string("Erro: ") + e.what());
-        }
+        } catch (const exception& e) { errResp(res, string("Erro: ") + e.what()); }
     });
 
     // ==================================================
@@ -262,16 +239,11 @@ int main() {
                 7, nullptr, p, nullptr, nullptr, 0);
             if (PQresultStatus(result) == PGRES_TUPLES_OK) {
                 json resp = {{"id", atoi(PQgetvalue(result, 0, 0))}, {"success", true}};
-                PQclear(result);
-                jsonResp(res, resp, 201);
+                PQclear(result); jsonResp(res, resp, 201);
             } else {
-                string err = PQerrorMessage(conn);
-                PQclear(result);
-                errResp(res, err);
+                string err = PQerrorMessage(conn); PQclear(result); errResp(res, err);
             }
-        } catch (const exception& e) {
-            errResp(res, string("Erro: ") + e.what());
-        }
+        } catch (const exception& e) { errResp(res, string("Erro: ") + e.what()); }
     });
 
     // ==================================================
@@ -295,11 +267,8 @@ int main() {
                 "quantidade=$5,categoria=$6,fabricado_em_mari=$7 WHERE id=$8",
                 8, nullptr, p, nullptr, nullptr, 0);
             json resp = {{"success", PQresultStatus(result) == PGRES_COMMAND_OK}};
-            PQclear(result);
-            jsonResp(res, resp);
-        } catch (const exception& e) {
-            errResp(res, string("Erro: ") + e.what());
-        }
+            PQclear(result); jsonResp(res, resp);
+        } catch (const exception& e) { errResp(res, string("Erro: ") + e.what()); }
     });
 
     // ==================================================
@@ -311,8 +280,7 @@ int main() {
         PGresult* result = PQexecParams(conn,
             "DELETE FROM instrumentos WHERE id=$1", 1, nullptr, p, nullptr, nullptr, 0);
         json resp = {{"success", PQresultStatus(result) == PGRES_COMMAND_OK}};
-        PQclear(result);
-        jsonResp(res, resp);
+        PQclear(result); jsonResp(res, resp);
     });
 
     // ==================================================
@@ -337,8 +305,7 @@ int main() {
                 {"cidade",          PQgetvalue(result, i, 8)}
             });
         }
-        PQclear(result);
-        jsonResp(res, arr);
+        PQclear(result); jsonResp(res, arr);
     });
 
     // ==================================================
@@ -363,16 +330,11 @@ int main() {
                 8, nullptr, p, nullptr, nullptr, 0);
             if (PQresultStatus(result) == PGRES_TUPLES_OK) {
                 json resp = {{"id", atoi(PQgetvalue(result, 0, 0))}, {"success", true}};
-                PQclear(result);
-                jsonResp(res, resp, 201);
+                PQclear(result); jsonResp(res, resp, 201);
             } else {
-                string err = PQerrorMessage(conn);
-                PQclear(result);
-                errResp(res, err);
+                string err = PQerrorMessage(conn); PQclear(result); errResp(res, err);
             }
-        } catch (const exception& e) {
-            errResp(res, string("Erro: ") + e.what());
-        }
+        } catch (const exception& e) { errResp(res, string("Erro: ") + e.what()); }
     });
 
     // ==================================================
@@ -397,11 +359,8 @@ int main() {
                 "torce_flamengo=$6,assiste_one_piece=$7,cidade=$8 WHERE id=$9",
                 9, nullptr, p, nullptr, nullptr, 0);
             json resp = {{"success", PQresultStatus(result) == PGRES_COMMAND_OK}};
-            PQclear(result);
-            jsonResp(res, resp);
-        } catch (const exception& e) {
-            errResp(res, string("Erro: ") + e.what());
-        }
+            PQclear(result); jsonResp(res, resp);
+        } catch (const exception& e) { errResp(res, string("Erro: ") + e.what()); }
     });
 
     // ==================================================
@@ -413,8 +372,7 @@ int main() {
         PGresult* result = PQexecParams(conn,
             "DELETE FROM clientes WHERE id=$1", 1, nullptr, p, nullptr, nullptr, 0);
         json resp = {{"success", PQresultStatus(result) == PGRES_COMMAND_OK}};
-        PQclear(result);
-        jsonResp(res, resp);
+        PQclear(result); jsonResp(res, resp);
     });
 
     // ==================================================
@@ -442,27 +400,42 @@ int main() {
                 {"total",          atof(PQgetvalue(result, i, 7))}
             });
         }
-        PQclear(result);
-        jsonResp(res, arr);
+        PQclear(result); jsonResp(res, arr);
     });
 
     // ==================================================
     // POST /api/vendas
+    // Body: { clienteId, funcionarioId, formaPagamento,
+    //         instrumentos: [id,...], quantidades: [qtd,...] }
     // ==================================================
     svr.Post("/api/vendas", [conn](const httplib::Request& req, httplib::Response& res) {
         try {
-            auto b            = json::parse(req.body);
-            int clienteId     = b.value("clienteId",     0);
-            int funcionarioId = b.value("funcionarioId", 0);
+            auto b = json::parse(req.body);
+
+            // intVal aceita tanto number quanto string
+            int clienteId     = intVal(b, "clienteId");
+            int funcionarioId = intVal(b, "funcionarioId");
             string forma      = strVal(b, "formaPagamento", "dinheiro");
-            auto instArr      = b.at("instrumentos").get<vector<int>>();
-            auto qtdArr       = b.at("quantidades").get<vector<int>>();
+
+            if (clienteId == 0 || funcionarioId == 0) {
+                errResp(res, "clienteId e funcionarioId sao obrigatorios"); return;
+            }
+
+            // Arrays de instrumentos e quantidades: cada elemento pode ser number ou string
+            auto instJson = b.at("instrumentos");
+            auto qtdJson  = b.at("quantidades");
 
             string pgInst = "{", pgQtd = "{";
-            for (size_t i = 0; i < instArr.size(); i++) {
+            for (size_t i = 0; i < instJson.size(); i++) {
                 if (i > 0) { pgInst += ","; pgQtd += ","; }
-                pgInst += to_string(instArr[i]);
-                pgQtd  += to_string(qtdArr[i]);
+                int instId = instJson[i].is_string()
+                    ? atoi(instJson[i].get<string>().c_str())
+                    : instJson[i].get<int>();
+                int qtd = qtdJson[i].is_string()
+                    ? atoi(qtdJson[i].get<string>().c_str())
+                    : qtdJson[i].get<int>();
+                pgInst += to_string(instId);
+                pgQtd  += to_string(qtd);
             }
             pgInst += "}"; pgQtd += "}";
 
