@@ -9,27 +9,18 @@ const MeusPedidos = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [alerta, setAlerta] = useState({ show: false, variant: '', message: '' });
 
+  const clienteId = localStorage.getItem('auth-id');
+
   useEffect(() => {
     const carregarPedidos = async () => {
+      if (!clienteId) {
+        setAlerta({ show: true, variant: 'warning', message: 'Você precisa estar logado para ver seus pedidos.' });
+        return;
+      }
       setIsLoading(true);
       try {
-        // Num cenário real com a API, a rota seria algo como GET /vendas/me
-        // Como estamos a usar o mock global de /vendas, vamos filtrar localmente
-        const data = await api.get('/vendas');
-        
-        // Simulação: assumindo que o "joaocliente" tem o ID 1 no nosso mock
-        const meusPedidos = data.filter(venda => venda.clienteId === 1 || venda.clienteId === '1');
-        
-        // Ordena para mostrar os mais recentes primeiro (assumindo formato DD/MM/YYYY)
-        const parseData = (dataStr) => {
-          if (!dataStr) return new Date(0);
-          const partes = dataStr.split('/');
-          return partes.length === 3 ? new Date(`${partes[2]}-${partes[1]}-${partes[0]}`) : new Date(dataStr);
-        };
-        
-        meusPedidos.sort((a, b) => parseData(b.data) - parseData(a.data));
-        
-        setPedidos(meusPedidos);
+        const data = await api.get(`/vendas/me?clienteId=${clienteId}`);
+        setPedidos(data);
       } catch (error) {
         setAlerta({ show: true, variant: 'danger', message: 'Erro ao carregar o histórico de pedidos.' });
       } finally {
@@ -38,7 +29,7 @@ const MeusPedidos = () => {
     };
 
     carregarPedidos();
-  }, []);
+  }, [clienteId]);
 
   return (
     <Container className="mt-4">
@@ -60,15 +51,15 @@ const MeusPedidos = () => {
           <tr>
             <th>Nº do Pedido</th>
             <th>Data da Compra</th>
+            <th>Desconto</th>
             <th>Valor Total (R$)</th>
-            <th>Status</th>
           </tr>
         </thead>
         <tbody>
           {isLoading ? (
-             <tr>
-               <td colSpan="4" className="text-center py-4">A carregar os seus pedidos...</td>
-             </tr>
+            <tr>
+              <td colSpan="4" className="text-center py-4">A carregar os seus pedidos...</td>
+            </tr>
           ) : pedidos.length === 0 ? (
             <tr>
               <td colSpan="4" className="text-center py-4">Ainda não efetuou nenhuma compra.</td>
@@ -78,10 +69,12 @@ const MeusPedidos = () => {
               <tr key={pedido.id}>
                 <td className="align-middle fw-bold">#{pedido.id}</td>
                 <td className="align-middle">{pedido.data}</td>
-                <td className="align-middle">R$ {Number(pedido.total).toFixed(2)}</td>
                 <td className="align-middle">
-                  <span className="badge bg-success">Concluído</span>
+                  {pedido.desconto > 0
+                    ? <span className="badge bg-success">{pedido.desconto}% OFF</span>
+                    : <span className="text-muted">—</span>}
                 </td>
+                <td className="align-middle">R$ {Number(pedido.total).toFixed(2)}</td>
               </tr>
             ))
           )}
