@@ -474,8 +474,9 @@ int main() {
 
     // ==================================================
     // POST /api/vendas
-    // Body: { clienteId, funcionarioId, formaPagamento,
-    //         instrumentos: [id,...], quantidades: [qtd,...] }
+    // Procedure: efetuar_compra($1 clienteId, $2 funcionarioId,
+    //            $3 instrumentos[], $4 quantidades[],
+    //            NULL (OUT p_pedido_id), $5 formaPagamento varchar)
     // ==================================================
     svr.Post("/api/vendas", [conn](const httplib::Request& req, httplib::Response& res) {
         try {
@@ -509,13 +510,14 @@ int main() {
             string cliStr  = to_string(clienteId);
             string funcStr = to_string(funcionarioId);
 
-            // Passa forma_pagamento como VARCHAR -- a procedure/INSERT faz o cast para o ENUM
-            // Isso garante compatibilidade mesmo sem rodar a migration dos ENUMs
+            // Assinatura atual da procedure:
+            // efetuar_compra(clienteId, funcionarioId, inst[], qtd[], OUT pedidoId, formaPgto varchar)
+            // No CALL: NULL ocupa a posicao do OUT (5a), formaPgto e o 6o argumento ($5)
             const char* p[5] = {cliStr.c_str(), funcStr.c_str(),
                                 pgInst.c_str(), pgQtd.c_str(), formaPgto.c_str()};
             PGresult* result = PQexecParams(conn,
                 "CALL efetuar_compra($1::integer,$2::integer,"
-                "$3::integer[],$4::integer[],$5::varchar,NULL)",
+                "$3::integer[],$4::integer[],NULL,$5::varchar)",
                 5, nullptr, p, nullptr, nullptr, 0);
 
             if (PQresultStatus(result) == PGRES_COMMAND_OK || PQresultStatus(result) == PGRES_TUPLES_OK) {

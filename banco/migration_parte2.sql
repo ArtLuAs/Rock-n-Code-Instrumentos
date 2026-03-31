@@ -1,9 +1,6 @@
 -- ====================================================================
 -- MIGRATION PARTE 2 — Executar no banco já existente
 -- ====================================================================
--- Aplica ENUMs, adiciona status_pagamento e recria a procedure
--- para aceitar VARCHAR (compatível com o backend C++).
--- ====================================================================
 
 \c loja_musical;
 
@@ -30,7 +27,9 @@ BEGIN
 END;
 $$;
 
--- 3. Converte forma_pagamento para ENUM (se ainda for VARCHAR)
+-- 3. Converte forma_pagamento para ENUM
+-- Precisa remover o DEFAULT antes de mudar o tipo,
+-- depois reaplica o DEFAULT já como ENUM.
 DO $$
 BEGIN
     IF EXISTS (
@@ -39,9 +38,11 @@ BEGIN
           AND column_name = 'forma_pagamento'
           AND data_type = 'character varying'
     ) THEN
+        ALTER TABLE pedidos ALTER COLUMN forma_pagamento DROP DEFAULT;
         ALTER TABLE pedidos
             ALTER COLUMN forma_pagamento TYPE forma_pgto
             USING forma_pagamento::forma_pgto;
+        ALTER TABLE pedidos ALTER COLUMN forma_pagamento SET DEFAULT 'dinheiro';
     END IF;
 END;
 $$;
@@ -53,19 +54,22 @@ ALTER TABLE pedidos
 -- 5. Índice
 CREATE INDEX IF NOT EXISTS idx_pedidos_status ON pedidos(status_pagamento);
 
--- 6. Remove versões antigas da procedure (qualquer assinatura)
-DROP PROCEDURE IF EXISTS efetuar_compra(integer, integer, integer[], integer[], forma_pgto, integer);
-DROP PROCEDURE IF EXISTS efetuar_compra(integer, integer, integer[], integer[], varchar,    integer);
+-- 6. Remove versões antigas da procedure
+-- Assinatura sem OUT (Postgres ignora OUT no DROP)
+DROP PROCEDURE IF EXISTS efetuar_compra(integer, integer, integer[], integer[], forma_pgto);
+DROP PROCEDURE IF EXISTS efetuar_compra(integer, integer, integer[], integer[], varchar);
 DROP PROCEDURE IF EXISTS efetuar_compra(integer, integer, integer[], integer[]);
 
--- 7. Recria a procedure aceitando VARCHAR — cast feito internamente
+-- 7. Recria a procedure
+-- REGRA: OUT nunca pode vir DEPOIS de um parâmetro com DEFAULT no Postgres.
+-- Solução: OUT fica antes do parâmetro opcional com DEFAULT.
 CREATE OR REPLACE PROCEDURE efetuar_compra(
     p_cliente_id      INTEGER,
     p_funcionario_id  INTEGER,
     p_instrumentos    INTEGER[],
     p_quantidades     INTEGER[],
-    p_forma_pagamento VARCHAR DEFAULT 'dinheiro',
-    OUT p_pedido_id   INTEGER
+    OUT p_pedido_id   INTEGER,
+    p_forma_pagamento VARCHAR DEFAULT 'dinheiro'
 )
 LANGUAGE plpgsql
 AS $$
