@@ -38,7 +38,7 @@ void GerenciaVendas::novaVenda(PGconn* conn, int funcionarioId) {
     }
 
     // --- Selecionar cliente ---
-    cout << "\n--- Clientes disponíveis ---" << endl;
+    cout << "\n--- Clientes disponiveis ---" << endl;
     GerenciaClientes::listarSimplificado(conn);
     int clienteId;
     cout << "ID do Cliente: ";
@@ -73,7 +73,7 @@ void GerenciaVendas::novaVenda(PGconn* conn, int funcionarioId) {
     vector<int> instIds, qtds;
     char continuar = 's';
     while (continuar == 's' || continuar == 'S') {
-        cout << "\n--- Instrumentos disponíveis ---" << endl;
+        cout << "\n--- Instrumentos disponiveis ---" << endl;
         GerenciaInstrumentos::listarSimplificado(conn);
         int instId, qtd;
         cout << "ID do Instrumento: "; cin >> instId;
@@ -85,23 +85,26 @@ void GerenciaVendas::novaVenda(PGconn* conn, int funcionarioId) {
 
     // --- Forma de pagamento ---
     cout << "\nForma de pagamento:" << endl;
-    cout << "1. Dinheiro"         << endl;
+    cout << "1. Dinheiro"          << endl;
     cout << "2. Cartao de Credito" << endl;
-    cout << "3. Cartao de Debito" << endl;
-    cout << "4. Pix"              << endl;
+    cout << "3. Cartao de Debito"  << endl;
+    cout << "4. Pix"               << endl;
+    cout << "5. Boleto"            << endl;
+    cout << "6. Berries"           << endl;
     cout << "Escolha: ";
     int formaopc; cin >> formaopc;
     string forma;
     switch (formaopc) {
-        case 1: forma = "dinheiro";        break;
-        case 2: forma = "cartao_credito";  break;
-        case 3: forma = "cartao_debito";   break;
-        case 4: forma = "pix";             break;
+        case 1: forma = "dinheiro";       break;
+        case 2: forma = "cartao_credito"; break;
+        case 3: forma = "cartao_debito";  break;
+        case 4: forma = "pix";            break;
+        case 5: forma = "boleto";         break;
+        case 6: forma = "berries";        break;
         default: forma = "dinheiro";
     }
 
     // --- Montar arrays PostgreSQL ---
-    // Formato: ARRAY[1,2,3]
     ostringstream arrInst, arrQtd;
     arrInst << "{";
     arrQtd  << "{";
@@ -118,15 +121,16 @@ void GerenciaVendas::novaVenda(PGconn* conn, int funcionarioId) {
     string instArr = arrInst.str();
     string qtdArr  = arrQtd.str();
 
+    // Ordem da procedure: (clienteId, funcionarioId, instrumentos[], quantidades[], forma_pgto, OUT pedidoId)
     const char* p[5] = {
-        cliStr.c_str(), funcStr.c_str(), forma.c_str(),
-        instArr.c_str(), qtdArr.c_str()
+        cliStr.c_str(), funcStr.c_str(),
+        instArr.c_str(), qtdArr.c_str(), forma.c_str()
     };
 
     // --- Chamar stored procedure ---
     PGresult* res = PQexecParams(conn,
-        "CALL efetuar_compra($1::integer, $2::integer, $3::forma_pgto, "
-        "$4::integer[], $5::integer[], NULL)",
+        "CALL efetuar_compra($1::integer, $2::integer, "
+        "$3::integer[], $4::integer[], $5::forma_pgto, NULL)",
         5, nullptr, p, nullptr, nullptr, 0);
 
     if (PQresultStatus(res) == PGRES_COMMAND_OK || PQresultStatus(res) == PGRES_TUPLES_OK) {
@@ -146,7 +150,6 @@ void GerenciaVendas::atualizarStatus(PGconn* conn) {
         return;
     }
 
-    // Listar pedidos pendentes
     PGresult* res = PQexec(conn,
         "SELECT p.id, c.nome, p.total, p.desconto, p.forma_pagamento, p.data "
         "FROM pedidos p JOIN clientes c ON c.id = p.cliente_id "
@@ -215,7 +218,7 @@ void GerenciaVendas::listar(PGconn* conn) {
         cout << "Pagamento: " << PQgetvalue(res, i, 4)
              << " | Status: " << PQgetvalue(res, i, 5) << endl;
         cout << "Desconto: "  << PQgetvalue(res, i, 6) << "%" << endl;
-        cout << "Total: R$ " << PQgetvalue(res, i, 7) << endl;
+        cout << "Total: R$ "  << PQgetvalue(res, i, 7) << endl;
     }
     cout << "------------------------------------------" << endl;
     PQclear(res);
@@ -246,10 +249,9 @@ void GerenciaVendas::exibirPedido(PGconn* conn, int pedidoId) {
     cout << "Pagamento: " << PQgetvalue(res, 0, 4)
          << " | Status: " << PQgetvalue(res, 0, 5) << endl;
     cout << "Desconto: "  << PQgetvalue(res, 0, 6) << "%" << endl;
-    cout << "Total: R$ " << PQgetvalue(res, 0, 7) << endl;
+    cout << "Total: R$ "  << PQgetvalue(res, 0, 7) << endl;
     PQclear(res);
 
-    // Itens do pedido
     PGresult* res2 = PQexecParams(conn,
         "SELECT i.nome, ip.quantidade, ip.preco_unitario, "
         "(ip.quantidade * ip.preco_unitario) AS subtotal "
@@ -270,7 +272,7 @@ void GerenciaVendas::exibirPedido(PGconn* conn, int pedidoId) {
     PQclear(res2);
 }
 
-// ===================== HISTÓRICO CLIENTE =====================
+// ===================== HISTORICO CLIENTE =====================
 
 void GerenciaVendas::historicoCliente(PGconn* conn) {
     if (!GerenciaClientes::possuiCadastrados(conn)) {
@@ -314,7 +316,7 @@ void GerenciaVendas::historicoCliente(PGconn* conn) {
     }
 }
 
-// ===================== RELATÓRIO MENSAL =====================
+// ===================== RELATORIO MENSAL =====================
 
 void GerenciaVendas::relatorioMensal(PGconn* conn) {
     PGresult* res = PQexec(conn,
@@ -340,7 +342,6 @@ void GerenciaVendas::relatorioMensal(PGconn* conn) {
 // ===================== MENU =====================
 
 void GerenciaVendas::menu(PGconn* conn) {
-    // Autentica o funcionario para associar ao pedido
     int funcionarioId = -1;
     if (!GerenciaFuncionarios::autenticar(conn, funcionarioId)) return;
 
@@ -371,7 +372,7 @@ void GerenciaVendas::menu(PGconn* conn) {
         }
         case 5: historicoCliente(conn);          break;
         case 6: relatorioMensal(conn);           break;
-        case 0: cout << "Voltando..." << endl;  break;
+        case 0: cout << "Voltando..." << endl;   break;
         default: cout << "Opcao invalida!" << endl;
         }
     }

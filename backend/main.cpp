@@ -302,6 +302,34 @@ int main() {
     });
 
     // ==================================================
+    // GET /api/clientes/:id   <-- NOVO: Minha Conta
+    // ==================================================
+    svr.Get("/api/clientes/(\\d+)", [conn](const httplib::Request& req, httplib::Response& res) {
+        string id = req.matches[1];
+        const char* p[1] = {id.c_str()};
+        PGresult* result = PQexecParams(conn,
+            "SELECT id, nome, cpf, telefone, email, sexo, "
+            "torce_flamengo, assiste_one_piece, cidade "
+            "FROM clientes WHERE id=$1",
+            1, nullptr, p, nullptr, nullptr, 0);
+        if (PQresultStatus(result) != PGRES_TUPLES_OK || PQntuples(result) == 0) {
+            PQclear(result); errResp(res, "Cliente nao encontrado", 404); return;
+        }
+        json resp = {
+            {"id",              atoi(PQgetvalue(result, 0, 0))},
+            {"nome",            PQgetvalue(result, 0, 1)},
+            {"cpf",             PQgetvalue(result, 0, 2)},
+            {"telefone",        PQgetvalue(result, 0, 3)},
+            {"email",           PQgetvalue(result, 0, 4)},
+            {"sexo",            PQgetvalue(result, 0, 5)},
+            {"torceFlamengo",   string(PQgetvalue(result, 0, 6)) == "t"},
+            {"assisteOnePiece", string(PQgetvalue(result, 0, 7)) == "t"},
+            {"cidade",          PQgetvalue(result, 0, 8)}
+        };
+        PQclear(result); jsonResp(res, resp);
+    });
+
+    // ==================================================
     // POST /api/clientes
     // ==================================================
     svr.Post("/api/clientes", [conn](const httplib::Request& req, httplib::Response& res) {
@@ -395,7 +423,7 @@ int main() {
         if (clienteIdStr.empty()) { errResp(res, "clienteId e obrigatorio"); return; }
         const char* p[1] = {clienteIdStr.c_str()};
         PGresult* result = PQexecParams(conn,
-            "SELECT p.id, p.data, p.forma_pagamento, p.desconto, p.total "
+            "SELECT p.id, p.data, p.forma_pagamento, p.status_pagamento, p.desconto, p.total "
             "FROM pedidos p "
             "WHERE p.cliente_id = $1::integer "
             "ORDER BY p.data DESC, p.id DESC;",
@@ -404,11 +432,12 @@ int main() {
         int rows = PQntuples(result);
         for (int i = 0; i < rows; i++) {
             arr.push_back({
-                {"id",             atoi(PQgetvalue(result, i, 0))},
-                {"data",           PQgetvalue(result, i, 1)},
-                {"formaPagamento", PQgetvalue(result, i, 2)},
-                {"desconto",       atof(PQgetvalue(result, i, 3))},
-                {"total",          atof(PQgetvalue(result, i, 4))}
+                {"id",              atoi(PQgetvalue(result, i, 0))},
+                {"data",            PQgetvalue(result, i, 1)},
+                {"formaPagamento",  PQgetvalue(result, i, 2)},
+                {"statusPagamento", PQgetvalue(result, i, 3)},
+                {"desconto",        atof(PQgetvalue(result, i, 4))},
+                {"total",           atof(PQgetvalue(result, i, 5))}
             });
         }
         PQclear(result); jsonResp(res, arr);
@@ -420,7 +449,7 @@ int main() {
     svr.Get("/api/vendas", [conn](const httplib::Request&, httplib::Response& res) {
         PGresult* result = PQexec(conn,
             "SELECT p.id, c.nome AS cliente, c.id AS cliente_id, f.nome AS vendedor, "
-            "p.data, p.forma_pagamento, p.desconto, p.total "
+            "p.data, p.forma_pagamento, p.status_pagamento, p.desconto, p.total "
             "FROM pedidos p "
             "JOIN clientes c     ON c.id = p.cliente_id "
             "JOIN funcionarios f ON f.id = p.funcionario_id "
@@ -429,14 +458,15 @@ int main() {
         int rows = PQntuples(result);
         for (int i = 0; i < rows; i++) {
             arr.push_back({
-                {"id",             atoi(PQgetvalue(result, i, 0))},
-                {"cliente",        PQgetvalue(result, i, 1)},
-                {"clienteId",      atoi(PQgetvalue(result, i, 2))},
-                {"vendedor",       PQgetvalue(result, i, 3)},
-                {"data",           PQgetvalue(result, i, 4)},
-                {"formaPagamento", PQgetvalue(result, i, 5)},
-                {"desconto",       atof(PQgetvalue(result, i, 6))},
-                {"total",          atof(PQgetvalue(result, i, 7))}
+                {"id",              atoi(PQgetvalue(result, i, 0))},
+                {"cliente",         PQgetvalue(result, i, 1)},
+                {"clienteId",       atoi(PQgetvalue(result, i, 2))},
+                {"vendedor",        PQgetvalue(result, i, 3)},
+                {"data",            PQgetvalue(result, i, 4)},
+                {"formaPagamento",  PQgetvalue(result, i, 5)},
+                {"statusPagamento", PQgetvalue(result, i, 6)},
+                {"desconto",        atof(PQgetvalue(result, i, 7))},
+                {"total",           atof(PQgetvalue(result, i, 8))}
             });
         }
         PQclear(result); jsonResp(res, arr);
@@ -478,11 +508,13 @@ int main() {
 
             string cliStr  = to_string(clienteId);
             string funcStr = to_string(funcionarioId);
+
+            // Ordem: (clienteId, funcionarioId, instrumentos[], quantidades[], forma_pgto, OUT pedidoId)
             const char* p[5] = {cliStr.c_str(), funcStr.c_str(),
                                 pgInst.c_str(), pgQtd.c_str(), formaPgto.c_str()};
             PGresult* result = PQexecParams(conn,
                 "CALL efetuar_compra($1::integer,$2::integer,"
-                "$3::integer[],$4::integer[],$5::varchar,NULL)",
+                "$3::integer[],$4::integer[],$5::forma_pgto,NULL)",
                 5, nullptr, p, nullptr, nullptr, 0);
 
             if (PQresultStatus(result) == PGRES_COMMAND_OK || PQresultStatus(result) == PGRES_TUPLES_OK) {
