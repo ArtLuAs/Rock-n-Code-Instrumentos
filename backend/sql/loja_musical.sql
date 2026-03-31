@@ -108,12 +108,14 @@ GROUP BY f.id, f.nome, DATE_TRUNC('month', p.data)
 ORDER BY mes DESC, total_vendido DESC;
 
 -- ===================== STORED PROCEDURE: EFETUAR COMPRA =====================
+-- Recebe forma_pagamento como VARCHAR para máxima compatibilidade.
+-- O cast VARCHAR -> forma_pgto é feito internamente no INSERT.
 CREATE OR REPLACE PROCEDURE efetuar_compra(
     p_cliente_id      INTEGER,
     p_funcionario_id  INTEGER,
     p_instrumentos    INTEGER[],
     p_quantidades     INTEGER[],
-    p_forma_pagamento forma_pgto DEFAULT 'dinheiro',
+    p_forma_pagamento VARCHAR DEFAULT 'dinheiro',
     OUT p_pedido_id   INTEGER
 )
 LANGUAGE plpgsql
@@ -163,7 +165,7 @@ BEGIN
     v_total := v_total * (1.0 - v_desconto / 100.0);
 
     INSERT INTO pedidos (cliente_id, funcionario_id, forma_pagamento, desconto, total, status_pagamento)
-    VALUES (p_cliente_id, p_funcionario_id, p_forma_pagamento, v_desconto, v_total, 'pendente')
+    VALUES (p_cliente_id, p_funcionario_id, p_forma_pagamento::forma_pgto, v_desconto, v_total, 'pendente')
     RETURNING id INTO p_pedido_id;
 
     FOR i IN 1 .. array_length(p_instrumentos, 1) LOOP
