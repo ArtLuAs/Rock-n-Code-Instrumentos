@@ -4,7 +4,6 @@ import { useOutletContext } from 'react-router-dom';
 import { api } from '../services/api';
 
 const TIPOS = ['guitarra', 'violao', 'baixo'];
-const CATEGORIAS = ['Cordas', 'Teclas', 'Percussão', 'Sopro', 'Acessórios', 'outros'];
 
 const PRODUTO_VAZIO = {
   id: null,
@@ -23,7 +22,7 @@ const ProdutosList = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [alerta, setAlerta] = useState({ show: false, variant: '', message: '' });
 
-  const [categoriasFiltro, setCategoriasFiltro] = useState([]);
+  const [tiposFiltro, setTiposFiltro] = useState([]);
   const [somenteStock, setSomenteStock] = useState(false);
   const [sortBy, setSortBy] = useState('id-asc');
 
@@ -72,7 +71,7 @@ const ProdutosList = () => {
 
   const handleSave = async () => {
     if (!currentProduto.nome || !currentProduto.tipo || !currentProduto.marca) {
-      mostrarAlerta('warning', 'Nome, Tipo e Marca são obrigatórios.');
+      mostrarAlerta('warning', 'Nome, Tipo e Marca s\u00e3o obrigat\u00f3rios.');
       return;
     }
     try {
@@ -81,8 +80,8 @@ const ProdutosList = () => {
       mostrarAlerta('success', 'Produto salvo com sucesso!');
       handleCloseForm();
       carregarProdutos();
-    } catch {
-      mostrarAlerta('danger', 'Erro ao salvar. Verifique os dados.');
+    } catch (err) {
+      mostrarAlerta('danger', `Erro ao salvar: ${err.message}`);
     }
   };
 
@@ -92,21 +91,18 @@ const ProdutosList = () => {
       mostrarAlerta('success', 'Produto eliminado!');
       handleCloseDelete();
       carregarProdutos();
-    } catch { mostrarAlerta('danger', 'Erro ao eliminar.'); }
+    } catch (err) { mostrarAlerta('danger', `Erro: ${err.message}`); }
   };
 
-  const toggleCategoria = (cat) => {
-    setCategoriasFiltro(prev => prev.includes(cat) ? prev.filter(c => c !== cat) : [...prev, cat]);
+  const toggleTipo = (tipo) => {
+    setTiposFiltro(prev => prev.includes(tipo) ? prev.filter(t => t !== tipo) : [...prev, tipo]);
   };
-
-  // Categorias reais vindas do banco
-  const categoriasReais = [...new Set(produtos.map(p => p.categoria).filter(Boolean))];
 
   const produtosFiltrados = produtos
     .filter(p => {
-      const matchCategoria = categoriasFiltro.length === 0 || categoriasFiltro.includes(p.categoria);
+      const matchTipo  = tiposFiltro.length === 0 || tiposFiltro.includes(p.tipo);
       const matchStock = somenteStock ? parseInt(p.quantidade) > 0 : true;
-      return matchCategoria && matchStock;
+      return matchTipo && matchStock;
     })
     .sort((a, b) => {
       if (sortBy === 'nome-asc')   return a.nome.localeCompare(b.nome);
@@ -126,7 +122,7 @@ const ProdutosList = () => {
       )}
 
       <Row className="mb-3 align-items-center">
-        <Col md={4}><h2>Catálogo de Produtos</h2></Col>
+        <Col md={4}><h2>Cat\u00e1logo de Produtos</h2></Col>
         <Col md={8} className="text-end">
           <Button variant="success" onClick={handleShowNew} disabled={isLoading}>+ Adicionar</Button>
         </Col>
@@ -135,12 +131,12 @@ const ProdutosList = () => {
       <div className="p-3 mb-4 rounded border" style={{ backgroundColor: theme === 'dark' ? '#212529' : '#f8f9fa' }}>
         <Row>
           <Col lg={8}>
-            <div className="mb-2 fw-bold">Filtrar por Categoria:</div>
+            <div className="mb-2 fw-bold">Filtrar por Tipo:</div>
             <div className="d-flex flex-wrap gap-3">
-              {categoriasReais.map(cat => (
-                <Form.Check key={cat} type="checkbox" label={cat}
-                  checked={categoriasFiltro.includes(cat)}
-                  onChange={() => toggleCategoria(cat)} />
+              {TIPOS.map(tipo => (
+                <Form.Check key={tipo} type="checkbox" label={tipo}
+                  checked={tiposFiltro.includes(tipo)}
+                  onChange={() => toggleTipo(tipo)} />
               ))}
             </div>
             <Form.Check type="switch" id="stock-switch" label="Mostrar apenas em stock"
@@ -153,10 +149,10 @@ const ProdutosList = () => {
               <Form.Select value={sortBy} onChange={(e) => setSortBy(e.target.value)}>
                 <option value="id-asc">ID (Crescente)</option>
                 <option value="id-desc">ID (Decrescente)</option>
-                <option value="nome-asc">Ordem Alfabética (A-Z)</option>
-                <option value="nome-desc">Ordem Alfabética (Z-A)</option>
-                <option value="preco-desc">Preço (Maior para Menor)</option>
-                <option value="preco-asc">Preço (Menor para Maior)</option>
+                <option value="nome-asc">Ordem Alfab\u00e9tica (A-Z)</option>
+                <option value="nome-desc">Ordem Alfab\u00e9tica (Z-A)</option>
+                <option value="preco-desc">Pre\u00e7o (Maior para Menor)</option>
+                <option value="preco-asc">Pre\u00e7o (Menor para Maior)</option>
               </Form.Select>
             </Form.Group>
           </Col>
@@ -167,7 +163,7 @@ const ProdutosList = () => {
         <thead>
           <tr>
             <th>ID</th><th>Nome</th><th>Tipo</th><th>Marca</th>
-            <th>Categoria</th><th>Preço</th><th>Qtd</th><th>Mari?</th><th>Ações</th>
+            <th>Categoria</th><th>Pre\u00e7o</th><th>Qtd</th><th>Mari?</th><th>A\u00e7\u00f5es</th>
           </tr>
         </thead>
         <tbody>
@@ -185,7 +181,10 @@ const ProdutosList = () => {
                 <td>{produto.categoria}</td>
                 <td>R$ {Number(produto.preco).toFixed(2)}</td>
                 <td>{produto.quantidade}</td>
-                <td>{produto.fabricadoEmMari ? <Badge bg="success">Sim</Badge> : <Badge bg="secondary">Não</Badge>}</td>
+                <td>{produto.fabricadoEmMari
+                  ? <Badge bg="success">Sim</Badge>
+                  : <Badge bg="secondary">N\u00e3o</Badge>}
+                </td>
                 <td>
                   <Button variant="primary" size="sm" className="me-2" onClick={() => handleShowEdit(produto)}>Editar</Button>
                   <Button variant="danger" size="sm" onClick={() => handleShowDelete(produto)}>Eliminar</Button>
@@ -196,7 +195,6 @@ const ProdutosList = () => {
         </tbody>
       </Table>
 
-      {/* Modal Criar/Editar */}
       <Modal show={showFormModal} onHide={handleCloseForm}>
         <Modal.Header closeButton>
           <Modal.Title>{isEditing ? 'Editar Produto' : 'Novo Produto'}</Modal.Title>
@@ -226,15 +224,12 @@ const ProdutosList = () => {
             </Row>
             <Form.Group className="mb-3">
               <Form.Label>Categoria</Form.Label>
-              <Form.Select name="categoria" value={currentProduto.categoria} onChange={handleChange}>
-                <option value="">Selecione...</option>
-                {CATEGORIAS.map(c => <option key={c} value={c}>{c}</option>)}
-              </Form.Select>
+              <Form.Control type="text" name="categoria" placeholder="ex: el\u00e9trico, ac\u00fastico..." value={currentProduto.categoria} onChange={handleChange} />
             </Form.Group>
             <Row>
               <Col md={6}>
                 <Form.Group className="mb-3">
-                  <Form.Label>Preço (R$)</Form.Label>
+                  <Form.Label>Pre\u00e7o (R$)</Form.Label>
                   <Form.Control type="number" step="0.01" name="preco" value={currentProduto.preco} onChange={handleChange} />
                 </Form.Group>
               </Col>
@@ -248,7 +243,7 @@ const ProdutosList = () => {
             <Form.Check
               type="switch"
               id="mari-switch"
-              label="🎸 Fabricado em Mari"
+              label="\ud83c\udfb8 Fabricado em Mari"
               name="fabricadoEmMari"
               checked={currentProduto.fabricadoEmMari}
               onChange={handleChange}
@@ -261,10 +256,9 @@ const ProdutosList = () => {
         </Modal.Footer>
       </Modal>
 
-      {/* Modal Confirmar Delete */}
       <Modal show={showDeleteModal} onHide={handleCloseDelete}>
-        <Modal.Header closeButton><Modal.Title>Atenção</Modal.Title></Modal.Header>
-        <Modal.Body>Confirma a exclusão de <strong>{produtoToDelete?.nome}</strong>?</Modal.Body>
+        <Modal.Header closeButton><Modal.Title>Aten\u00e7\u00e3o</Modal.Title></Modal.Header>
+        <Modal.Body>Confirma a exclus\u00e3o de <strong>{produtoToDelete?.nome}</strong>?</Modal.Body>
         <Modal.Footer>
           <Button variant="secondary" onClick={handleCloseDelete}>Cancelar</Button>
           <Button variant="danger" onClick={handleDelete}>Confirmar</Button>

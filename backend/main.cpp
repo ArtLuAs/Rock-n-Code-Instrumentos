@@ -4,9 +4,6 @@
 #include "headers/gerenciaFuncionarios.hpp"
 #include "headers/gerenciaVendas.hpp"
 
-// Baixe os headers e coloque em backend/vendor/:
-//   https://raw.githubusercontent.com/yhirose/cpp-httplib/master/httplib.h
-//   https://raw.githubusercontent.com/nlohmann/json/develop/single_include/nlohmann/json.hpp
 #include "vendor/httplib.h"
 #include "vendor/json.hpp"
 
@@ -36,6 +33,13 @@ static void errResp(httplib::Response& res, const string& msg, int status = 400)
     res.status = status;
 }
 
+// Aceita o campo tanto como string quanto como number
+static string strVal(const json& b, const string& key, const string& def = "") {
+    if (!b.contains(key) || b[key].is_null()) return def;
+    if (b[key].is_string()) return b[key].get<string>();
+    return b[key].dump(); // number, bool -> converte para string
+}
+
 // ===================== MAIN =====================
 
 int main() {
@@ -48,7 +52,6 @@ int main() {
 
     httplib::Server svr;
 
-    // Preflight CORS para todos os endpoints
     svr.Options(".*", [](const httplib::Request&, httplib::Response& res) {
         setCors(res);
         res.status = 204;
@@ -56,13 +59,11 @@ int main() {
 
     // ==================================================
     // POST /api/login
-    // Body: { "cpf": "12345678900" }  ou  { "id": 1 }
     // ==================================================
     svr.Post("/api/login", [conn](const httplib::Request& req, httplib::Response& res) {
         try {
-            auto body   = json::parse(req.body);
-            string cpf  = body.value("cpf", "");
-            // Normalizar CPF
+            auto body  = json::parse(req.body);
+            string cpf = strVal(body, "cpf");
             string cpfNorm;
             for (char c : cpf)
                 if (c != '.' && c != '-') cpfNorm += c;
@@ -84,8 +85,8 @@ int main() {
                 PQclear(result);
                 errResp(res, "Credenciais invalidas", 401);
             }
-        } catch (...) {
-            errResp(res, "Requisicao invalida", 400);
+        } catch (const exception& e) {
+            errResp(res, string("Erro: ") + e.what(), 400);
         }
     });
 
@@ -100,14 +101,14 @@ int main() {
         int rows = PQntuples(result);
         for (int i = 0; i < rows; i++) {
             arr.push_back({
-                {"id",               atoi(PQgetvalue(result, i, 0))},
-                {"nome",             PQgetvalue(result, i, 1)},
-                {"tipo",             PQgetvalue(result, i, 2)},
-                {"marca",            PQgetvalue(result, i, 3)},
-                {"preco",            atof(PQgetvalue(result, i, 4))},
-                {"quantidade",       atoi(PQgetvalue(result, i, 5))},
-                {"categoria",        PQgetvalue(result, i, 6)},
-                {"fabricadoEmMari",  string(PQgetvalue(result, i, 7)) == "t"}
+                {"id",              atoi(PQgetvalue(result, i, 0))},
+                {"nome",            PQgetvalue(result, i, 1)},
+                {"tipo",            PQgetvalue(result, i, 2)},
+                {"marca",           PQgetvalue(result, i, 3)},
+                {"preco",           atof(PQgetvalue(result, i, 4))},
+                {"quantidade",      atoi(PQgetvalue(result, i, 5))},
+                {"categoria",       PQgetvalue(result, i, 6)},
+                {"fabricadoEmMari", string(PQgetvalue(result, i, 7)) == "t"}
             });
         }
         PQclear(result);
@@ -116,20 +117,20 @@ int main() {
 
     // ==================================================
     // POST /api/produtos
-    // Body: { nome, tipo, marca, preco, quantidade, categoria, fabricadoEmMari }
     // ==================================================
     svr.Post("/api/produtos", [conn](const httplib::Request& req, httplib::Response& res) {
         try {
-            auto b = json::parse(req.body);
-            string nome      = b.value("nome",      "");
-            string tipo      = b.value("tipo",      "");
-            string marca     = b.value("marca",     "");
-            string preco     = to_string(b.value("preco",     0.0));
-            string qtd       = to_string(b.value("quantidade",0));
-            string categoria = b.value("categoria", "outros");
-            string mari      = b.value("fabricadoEmMari", false) ? "true" : "false";
+            auto b       = json::parse(req.body);
+            string nome  = strVal(b, "nome");
+            string tipo  = strVal(b, "tipo");
+            string marca = strVal(b, "marca");
+            string preco = strVal(b, "preco", "0");
+            string qtd   = strVal(b, "quantidade", "0");
+            string cat   = strVal(b, "categoria", "outros");
+            string mari  = (b.contains("fabricadoEmMari") && b["fabricadoEmMari"] == true) ? "true" : "false";
+
             const char* p[7] = {nome.c_str(), tipo.c_str(), marca.c_str(),
-                                preco.c_str(), qtd.c_str(), categoria.c_str(), mari.c_str()};
+                                preco.c_str(), qtd.c_str(), cat.c_str(), mari.c_str()};
             PGresult* result = PQexecParams(conn,
                 "INSERT INTO instrumentos (nome,tipo,marca,preco,quantidade,categoria,fabricado_em_mari) "
                 "VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING id",
@@ -139,10 +140,13 @@ int main() {
                 PQclear(result);
                 jsonResp(res, resp, 201);
             } else {
+                string err = PQerrorMessage(conn);
                 PQclear(result);
-                errResp(res, PQerrorMessage(conn));
+                errResp(res, err);
             }
-        } catch (...) { errResp(res, "Requisicao invalida"); }
+        } catch (const exception& e) {
+            errResp(res, string("Erro: ") + e.what());
+        }
     });
 
     // ==================================================
@@ -152,13 +156,14 @@ int main() {
         try {
             auto b       = json::parse(req.body);
             string id    = req.matches[1];
-            string nome  = b.value("nome",      "");
-            string tipo  = b.value("tipo",      "");
-            string marca = b.value("marca",     "");
-            string preco = to_string(b.value("preco",     0.0));
-            string qtd   = to_string(b.value("quantidade",0));
-            string cat   = b.value("categoria", "outros");
-            string mari  = b.value("fabricadoEmMari", false) ? "true" : "false";
+            string nome  = strVal(b, "nome");
+            string tipo  = strVal(b, "tipo");
+            string marca = strVal(b, "marca");
+            string preco = strVal(b, "preco", "0");
+            string qtd   = strVal(b, "quantidade", "0");
+            string cat   = strVal(b, "categoria", "outros");
+            string mari  = (b.contains("fabricadoEmMari") && b["fabricadoEmMari"] == true) ? "true" : "false";
+
             const char* p[8] = {nome.c_str(), tipo.c_str(), marca.c_str(),
                                 preco.c_str(), qtd.c_str(), cat.c_str(), mari.c_str(), id.c_str()};
             PGresult* result = PQexecParams(conn,
@@ -168,7 +173,9 @@ int main() {
             json resp = {{"success", PQresultStatus(result) == PGRES_COMMAND_OK}};
             PQclear(result);
             jsonResp(res, resp);
-        } catch (...) { errResp(res, "Requisicao invalida"); }
+        } catch (const exception& e) {
+            errResp(res, string("Erro: ") + e.what());
+        }
     });
 
     // ==================================================
@@ -216,14 +223,15 @@ int main() {
     svr.Post("/api/clientes", [conn](const httplib::Request& req, httplib::Response& res) {
         try {
             auto b       = json::parse(req.body);
-            string nome  = b.value("nome",  "");
-            string cpf   = b.value("cpf",   "");
-            string tel   = b.value("telefone", "");
-            string email = b.value("email",    "");
-            string sexo  = b.value("sexo",     "");
-            string flam  = b.value("torceFlamengo",   false) ? "true" : "false";
-            string one   = b.value("assisteOnePiece", false) ? "true" : "false";
-            string cid   = b.value("cidade", "");
+            string nome  = strVal(b, "nome");
+            string cpf   = strVal(b, "cpf");
+            string tel   = strVal(b, "telefone");
+            string email = strVal(b, "email");
+            string sexo  = strVal(b, "sexo");
+            string flam  = (b.contains("torceFlamengo")   && b["torceFlamengo"]   == true) ? "true" : "false";
+            string one   = (b.contains("assisteOnePiece") && b["assisteOnePiece"] == true) ? "true" : "false";
+            string cid   = strVal(b, "cidade");
+
             const char* p[8] = {nome.c_str(), cpf.c_str(), tel.c_str(), email.c_str(),
                                 sexo.c_str(), flam.c_str(), one.c_str(), cid.c_str()};
             PGresult* result = PQexecParams(conn,
@@ -235,10 +243,13 @@ int main() {
                 PQclear(result);
                 jsonResp(res, resp, 201);
             } else {
+                string err = PQerrorMessage(conn);
                 PQclear(result);
-                errResp(res, PQerrorMessage(conn));
+                errResp(res, err);
             }
-        } catch (...) { errResp(res, "Requisicao invalida"); }
+        } catch (const exception& e) {
+            errResp(res, string("Erro: ") + e.what());
+        }
     });
 
     // ==================================================
@@ -248,14 +259,15 @@ int main() {
         try {
             auto b       = json::parse(req.body);
             string id    = req.matches[1];
-            string nome  = b.value("nome",  "");
-            string cpf   = b.value("cpf",   "");
-            string tel   = b.value("telefone", "");
-            string email = b.value("email",    "");
-            string sexo  = b.value("sexo",     "");
-            string flam  = b.value("torceFlamengo",   false) ? "true" : "false";
-            string one   = b.value("assisteOnePiece", false) ? "true" : "false";
-            string cid   = b.value("cidade", "");
+            string nome  = strVal(b, "nome");
+            string cpf   = strVal(b, "cpf");
+            string tel   = strVal(b, "telefone");
+            string email = strVal(b, "email");
+            string sexo  = strVal(b, "sexo");
+            string flam  = (b.contains("torceFlamengo")   && b["torceFlamengo"]   == true) ? "true" : "false";
+            string one   = (b.contains("assisteOnePiece") && b["assisteOnePiece"] == true) ? "true" : "false";
+            string cid   = strVal(b, "cidade");
+
             const char* p[9] = {nome.c_str(), cpf.c_str(), tel.c_str(), email.c_str(),
                                 sexo.c_str(), flam.c_str(), one.c_str(), cid.c_str(), id.c_str()};
             PGresult* result = PQexecParams(conn,
@@ -265,7 +277,9 @@ int main() {
             json resp = {{"success", PQresultStatus(result) == PGRES_COMMAND_OK}};
             PQclear(result);
             jsonResp(res, resp);
-        } catch (...) { errResp(res, "Requisicao invalida"); }
+        } catch (const exception& e) {
+            errResp(res, string("Erro: ") + e.what());
+        }
     });
 
     // ==================================================
@@ -312,35 +326,28 @@ int main() {
 
     // ==================================================
     // POST /api/vendas
-    // Body: { clienteId, funcionarioId, formaPagamento,
-    //         instrumentos: [id,...], quantidades: [qtd,...] }
     // ==================================================
     svr.Post("/api/vendas", [conn](const httplib::Request& req, httplib::Response& res) {
         try {
             auto b            = json::parse(req.body);
-            int clienteId     = b.value("clienteId",    0);
-            int funcionarioId = b.value("funcionarioId",0);
-            string forma      = b.value("formaPagamento", "dinheiro");
+            int clienteId     = b.value("clienteId",     0);
+            int funcionarioId = b.value("funcionarioId", 0);
+            string forma      = strVal(b, "formaPagamento", "dinheiro");
             auto instArr      = b.at("instrumentos").get<vector<int>>();
             auto qtdArr       = b.at("quantidades").get<vector<int>>();
 
-            // Montar arrays PostgreSQL
-            string pgInst = "{";
-            string pgQtd  = "{";
+            string pgInst = "{", pgQtd = "{";
             for (size_t i = 0; i < instArr.size(); i++) {
                 if (i > 0) { pgInst += ","; pgQtd += ","; }
                 pgInst += to_string(instArr[i]);
                 pgQtd  += to_string(qtdArr[i]);
             }
-            pgInst += "}";
-            pgQtd  += "}";
+            pgInst += "}"; pgQtd += "}";
 
             string cliStr  = to_string(clienteId);
             string funcStr = to_string(funcionarioId);
-            const char* p[5] = {
-                cliStr.c_str(), funcStr.c_str(), forma.c_str(),
-                pgInst.c_str(), pgQtd.c_str()
-            };
+            const char* p[5] = {cliStr.c_str(), funcStr.c_str(), forma.c_str(),
+                                pgInst.c_str(), pgQtd.c_str()};
             PGresult* result = PQexecParams(conn,
                 "CALL efetuar_compra($1::integer,$2::integer,$3::forma_pgto,"
                 "$4::integer[],$5::integer[],NULL)",
@@ -355,25 +362,12 @@ int main() {
                 errResp(res, err);
             }
         } catch (const exception& e) {
-            errResp(res, string("Requisicao invalida: ") + e.what());
+            errResp(res, string("Erro: ") + e.what());
         }
     });
 
-    cout << "Endpoints ativos:" << endl;
-    cout << "  POST   /api/login"       << endl;
-    cout << "  GET    /api/produtos"    << endl;
-    cout << "  POST   /api/produtos"    << endl;
-    cout << "  PUT    /api/produtos/:id" << endl;
-    cout << "  DELETE /api/produtos/:id" << endl;
-    cout << "  GET    /api/clientes"    << endl;
-    cout << "  POST   /api/clientes"    << endl;
-    cout << "  PUT    /api/clientes/:id" << endl;
-    cout << "  DELETE /api/clientes/:id" << endl;
-    cout << "  GET    /api/vendas"      << endl;
-    cout << "  POST   /api/vendas"      << endl;
-
+    cout << "Endpoints ativos em http://localhost:8080" << endl;
     svr.listen("0.0.0.0", 8080);
-
     PQfinish(conn);
     return 0;
 }
