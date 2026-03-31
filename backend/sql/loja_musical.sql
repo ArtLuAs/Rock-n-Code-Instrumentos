@@ -2,19 +2,12 @@
 -- SCRIPT DE CRIAÇÃO DO BANCO: LOJA MUSICAL
 -- ====================================================================
 
--- 1. Criar usuário e senha (comente se o usuário já existir)
 CREATE USER lojamusical_user WITH PASSWORD 'SenhaSegura123';
-
--- 2. Criar banco de dados (comente se o banco já existir)
 CREATE DATABASE loja_musical;
-
--- 3. Dar permissões ao usuário no banco
 GRANT ALL PRIVILEGES ON DATABASE loja_musical TO lojamusical_user;
-
--- 4. Conectar no banco
 \c loja_musical;
 
--- ===================== TABELA: INSTRUMENTOS =====================
+-- ===================== INSTRUMENTOS =====================
 CREATE TABLE instrumentos (
     id                SERIAL        PRIMARY KEY,
     nome              VARCHAR(100)  NOT NULL,
@@ -26,7 +19,7 @@ CREATE TABLE instrumentos (
     fabricado_em_mari BOOLEAN       NOT NULL DEFAULT FALSE
 );
 
--- ===================== TABELA: CLIENTES =====================
+-- ===================== CLIENTES =====================
 CREATE TABLE clientes (
     id                SERIAL       PRIMARY KEY,
     nome              VARCHAR(100) NOT NULL,
@@ -40,7 +33,7 @@ CREATE TABLE clientes (
     senha             VARCHAR(100)
 );
 
--- ===================== TABELA: FUNCIONARIOS =====================
+-- ===================== FUNCIONARIOS =====================
 CREATE TABLE funcionarios (
     id       SERIAL       PRIMARY KEY,
     nome     VARCHAR(100) NOT NULL,
@@ -51,17 +44,19 @@ CREATE TABLE funcionarios (
     senha    VARCHAR(100)
 );
 
--- ===================== TABELA: PEDIDOS =====================
+-- ===================== PEDIDOS =====================
+-- forma_pagamento: dinheiro | cartao_credito | cartao_debito | pix | boleto | berries
 CREATE TABLE pedidos (
-    id             SERIAL        PRIMARY KEY,
-    cliente_id     INTEGER       NOT NULL REFERENCES clientes(id)     ON DELETE RESTRICT,
-    funcionario_id INTEGER       NOT NULL REFERENCES funcionarios(id) ON DELETE RESTRICT,
-    data           DATE          NOT NULL DEFAULT CURRENT_DATE,
-    desconto       NUMERIC(5,2)  NOT NULL DEFAULT 0.00 CHECK (desconto >= 0 AND desconto <= 100),
-    total          NUMERIC(10,2) NOT NULL DEFAULT 0.00 CHECK (total >= 0)
+    id               SERIAL        PRIMARY KEY,
+    cliente_id       INTEGER       NOT NULL REFERENCES clientes(id)     ON DELETE RESTRICT,
+    funcionario_id   INTEGER       NOT NULL REFERENCES funcionarios(id) ON DELETE RESTRICT,
+    data             DATE          NOT NULL DEFAULT CURRENT_DATE,
+    forma_pagamento  VARCHAR(20)   NOT NULL DEFAULT 'dinheiro',
+    desconto         NUMERIC(5,2)  NOT NULL DEFAULT 0.00 CHECK (desconto >= 0 AND desconto <= 100),
+    total            NUMERIC(10,2) NOT NULL DEFAULT 0.00 CHECK (total >= 0)
 );
 
--- ===================== TABELA: ITENS DO PEDIDO =====================
+-- ===================== ITENS DO PEDIDO =====================
 CREATE TABLE itens_pedido (
     id             SERIAL        PRIMARY KEY,
     pedido_id      INTEGER       NOT NULL REFERENCES pedidos(id)      ON DELETE CASCADE,
@@ -97,29 +92,29 @@ ORDER BY mes DESC, total_vendido DESC;
 
 -- ===================== STORED PROCEDURE: EFETUAR COMPRA =====================
 CREATE OR REPLACE PROCEDURE efetuar_compra(
-    p_cliente_id     INTEGER,
-    p_funcionario_id INTEGER,
-    p_instrumentos   INTEGER[],
-    p_quantidades    INTEGER[],
-    OUT p_pedido_id  INTEGER
+    p_cliente_id      INTEGER,
+    p_funcionario_id  INTEGER,
+    p_instrumentos    INTEGER[],
+    p_quantidades     INTEGER[],
+    p_forma_pagamento VARCHAR(20) DEFAULT 'dinheiro',
+    OUT p_pedido_id   INTEGER
 )
 LANGUAGE plpgsql
 AS $$
 DECLARE
-    v_desconto      NUMERIC(5,2)  := 0.00;
-    v_total         NUMERIC(10,2) := 0.00;
-    v_preco         NUMERIC(10,2);
-    v_estoque       INTEGER;
-    v_subtotal      NUMERIC(10,2);
-    i               INTEGER;
-    v_torce_flam    BOOLEAN;
-    v_one_piece     BOOLEAN;
-    v_cidade        VARCHAR(100);
+    v_desconto   NUMERIC(5,2)  := 0.00;
+    v_total      NUMERIC(10,2) := 0.00;
+    v_preco      NUMERIC(10,2);
+    v_estoque    INTEGER;
+    v_subtotal   NUMERIC(10,2);
+    i            INTEGER;
+    v_torce_flam BOOLEAN;
+    v_one_piece  BOOLEAN;
+    v_cidade     VARCHAR(100);
 BEGIN
     IF NOT EXISTS (SELECT 1 FROM clientes WHERE id = p_cliente_id) THEN
         RAISE EXCEPTION 'Cliente % não encontrado.', p_cliente_id;
     END IF;
-
     IF NOT EXISTS (SELECT 1 FROM funcionarios WHERE id = p_funcionario_id) THEN
         RAISE EXCEPTION 'Funcionário % não encontrado.', p_funcionario_id;
     END IF;
@@ -140,7 +135,6 @@ BEGIN
         IF NOT FOUND THEN
             RAISE EXCEPTION 'Instrumento % não encontrado.', p_instrumentos[i];
         END IF;
-
         IF v_estoque < p_quantidades[i] THEN
             RAISE EXCEPTION 'Estoque insuficiente para instrumento % (disponível: %).', p_instrumentos[i], v_estoque;
         END IF;
@@ -151,19 +145,15 @@ BEGIN
 
     v_total := v_total * (1.0 - v_desconto / 100.0);
 
-    INSERT INTO pedidos (cliente_id, funcionario_id, desconto, total)
-    VALUES (p_cliente_id, p_funcionario_id, v_desconto, v_total)
+    INSERT INTO pedidos (cliente_id, funcionario_id, forma_pagamento, desconto, total)
+    VALUES (p_cliente_id, p_funcionario_id, p_forma_pagamento, v_desconto, v_total)
     RETURNING id INTO p_pedido_id;
 
     FOR i IN 1 .. array_length(p_instrumentos, 1) LOOP
         SELECT preco INTO v_preco FROM instrumentos WHERE id = p_instrumentos[i];
-
         INSERT INTO itens_pedido (pedido_id, instrumento_id, quantidade, preco_unitario)
         VALUES (p_pedido_id, p_instrumentos[i], p_quantidades[i], v_preco);
-
-        UPDATE instrumentos
-        SET quantidade = quantidade - p_quantidades[i]
-        WHERE id = p_instrumentos[i];
+        UPDATE instrumentos SET quantidade = quantidade - p_quantidades[i] WHERE id = p_instrumentos[i];
     END LOOP;
 END;
 $$;
@@ -183,14 +173,11 @@ GRANT USAGE, SELECT ON SEQUENCE funcionarios_id_seq TO lojamusical_user;
 GRANT USAGE, SELECT ON SEQUENCE pedidos_id_seq      TO lojamusical_user;
 GRANT USAGE, SELECT ON SEQUENCE itens_pedido_id_seq TO lojamusical_user;
 
--- ===================== MIGRATION (banco já existente) =====================
--- Execute no pgAdmin se o banco já estava criado:
+-- ===================== MIGRATION (banco ja existente) =====================
+-- Execute no pgAdmin se o banco ja estava criado:
 --
 -- ALTER TABLE pedidos
---     DROP COLUMN IF EXISTS forma_pagamento,
---     DROP COLUMN IF EXISTS status_pagamento;
+--     ADD COLUMN IF NOT EXISTS forma_pagamento VARCHAR(20) NOT NULL DEFAULT 'dinheiro';
 --
--- DROP TYPE IF EXISTS forma_pgto;
--- DROP TYPE IF EXISTS status_pgto;
---
--- Em seguida, recrie a procedure com o bloco CREATE OR REPLACE acima.
+-- DROP PROCEDURE IF EXISTS efetuar_compra(integer, integer, integer[], integer[]);
+-- Em seguida recrie a procedure com o bloco acima.
