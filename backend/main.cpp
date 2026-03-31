@@ -376,6 +376,24 @@ int main() {
     });
 
     // ==================================================
+    // GET /api/funcionarios
+    // ==================================================
+    svr.Get("/api/funcionarios", [conn](const httplib::Request&, httplib::Response& res) {
+        PGresult* result = PQexec(conn,
+            "SELECT id, nome, cargo FROM funcionarios ORDER BY id;");
+        json arr = json::array();
+        int rows = PQntuples(result);
+        for (int i = 0; i < rows; i++) {
+            arr.push_back({
+                {"id",    atoi(PQgetvalue(result, i, 0))},
+                {"nome",  PQgetvalue(result, i, 1)},
+                {"cargo", PQgetvalue(result, i, 2)}
+            });
+        }
+        PQclear(result); jsonResp(res, arr);
+    });
+
+    // ==================================================
     // GET /api/vendas
     // ==================================================
     svr.Get("/api/vendas", [conn](const httplib::Request&, httplib::Response& res) {
@@ -412,7 +430,6 @@ int main() {
         try {
             auto b = json::parse(req.body);
 
-            // intVal aceita tanto number quanto string
             int clienteId     = intVal(b, "clienteId");
             int funcionarioId = intVal(b, "funcionarioId");
             string forma      = strVal(b, "formaPagamento", "dinheiro");
@@ -421,7 +438,6 @@ int main() {
                 errResp(res, "clienteId e funcionarioId sao obrigatorios"); return;
             }
 
-            // Arrays de instrumentos e quantidades: cada elemento pode ser number ou string
             auto instJson = b.at("instrumentos");
             auto qtdJson  = b.at("quantidades");
 
