@@ -14,10 +14,6 @@ GRANT ALL PRIVILEGES ON DATABASE loja_musical TO lojamusical_user;
 -- 4. Conectar no banco
 \c loja_musical;
 
--- ===================== ENUMs =====================
-CREATE TYPE forma_pgto AS ENUM ('dinheiro', 'cartao_credito', 'cartao_debito', 'pix');
-CREATE TYPE status_pgto AS ENUM ('pendente', 'confirmado', 'recusado');
-
 -- ===================== TABELA: INSTRUMENTOS =====================
 CREATE TABLE instrumentos (
     id                SERIAL        PRIMARY KEY,
@@ -40,7 +36,8 @@ CREATE TABLE clientes (
     sexo              VARCHAR(20)  CHECK (sexo IN ('Masculino', 'Feminino', 'Outro')),
     torce_flamengo    BOOLEAN      NOT NULL DEFAULT FALSE,
     assiste_one_piece BOOLEAN      NOT NULL DEFAULT FALSE,
-    cidade            VARCHAR(100)
+    cidade            VARCHAR(100),
+    senha             VARCHAR(100)
 );
 
 -- ===================== TABELA: FUNCIONARIOS =====================
@@ -50,19 +47,18 @@ CREATE TABLE funcionarios (
     cpf      VARCHAR(14)  NOT NULL UNIQUE,
     telefone VARCHAR(20),
     email    VARCHAR(100),
-    cargo    VARCHAR(100) NOT NULL DEFAULT 'vendedor'
+    cargo    VARCHAR(100) NOT NULL DEFAULT 'vendedor',
+    senha    VARCHAR(100)
 );
 
 -- ===================== TABELA: PEDIDOS =====================
 CREATE TABLE pedidos (
-    id                SERIAL        PRIMARY KEY,
-    cliente_id        INTEGER       NOT NULL REFERENCES clientes(id)     ON DELETE RESTRICT,
-    funcionario_id    INTEGER       NOT NULL REFERENCES funcionarios(id) ON DELETE RESTRICT,
-    data              DATE          NOT NULL DEFAULT CURRENT_DATE,
-    forma_pagamento   forma_pgto    NOT NULL,
-    status_pagamento  status_pgto   NOT NULL DEFAULT 'pendente',
-    desconto          NUMERIC(5,2)  NOT NULL DEFAULT 0.00 CHECK (desconto >= 0 AND desconto <= 100),
-    total             NUMERIC(10,2) NOT NULL DEFAULT 0.00 CHECK (total >= 0)
+    id             SERIAL        PRIMARY KEY,
+    cliente_id     INTEGER       NOT NULL REFERENCES clientes(id)     ON DELETE RESTRICT,
+    funcionario_id INTEGER       NOT NULL REFERENCES funcionarios(id) ON DELETE RESTRICT,
+    data           DATE          NOT NULL DEFAULT CURRENT_DATE,
+    desconto       NUMERIC(5,2)  NOT NULL DEFAULT 0.00 CHECK (desconto >= 0 AND desconto <= 100),
+    total          NUMERIC(10,2) NOT NULL DEFAULT 0.00 CHECK (total >= 0)
 );
 
 -- ===================== TABELA: ITENS DO PEDIDO =====================
@@ -96,7 +92,6 @@ SELECT
     SUM(p.total)                      AS total_vendido
 FROM pedidos p
 JOIN funcionarios f ON f.id = p.funcionario_id
-WHERE p.status_pagamento = 'confirmado'
 GROUP BY f.id, f.nome, DATE_TRUNC('month', p.data)
 ORDER BY mes DESC, total_vendido DESC;
 
@@ -104,9 +99,8 @@ ORDER BY mes DESC, total_vendido DESC;
 CREATE OR REPLACE PROCEDURE efetuar_compra(
     p_cliente_id     INTEGER,
     p_funcionario_id INTEGER,
-    p_forma_pgto     forma_pgto,
-    p_instrumentos   INTEGER[],   -- array de instrumento_id
-    p_quantidades    INTEGER[],   -- array de quantidades (mesmo índice)
+    p_instrumentos   INTEGER[],
+    p_quantidades    INTEGER[],
     OUT p_pedido_id  INTEGER
 )
 LANGUAGE plpgsql
@@ -122,17 +116,14 @@ DECLARE
     v_one_piece     BOOLEAN;
     v_cidade        VARCHAR(100);
 BEGIN
-    -- Verificar se cliente existe
     IF NOT EXISTS (SELECT 1 FROM clientes WHERE id = p_cliente_id) THEN
         RAISE EXCEPTION 'Cliente % não encontrado.', p_cliente_id;
     END IF;
 
-    -- Verificar se funcionário existe
     IF NOT EXISTS (SELECT 1 FROM funcionarios WHERE id = p_funcionario_id) THEN
         RAISE EXCEPTION 'Funcionário % não encontrado.', p_funcionario_id;
     END IF;
 
-    -- Calcular desconto do cliente
     SELECT torce_flamengo, assiste_one_piece, LOWER(COALESCE(cidade, ''))
     INTO v_torce_flam, v_one_piece, v_cidade
     FROM clientes WHERE id = p_cliente_id;
@@ -141,7 +132,6 @@ BEGIN
         v_desconto := 10.00;
     END IF;
 
-    -- Validar estoque e calcular total
     FOR i IN 1 .. array_length(p_instrumentos, 1) LOOP
         SELECT preco, quantidade
         INTO v_preco, v_estoque
@@ -159,15 +149,12 @@ BEGIN
         v_total    := v_total + v_subtotal;
     END LOOP;
 
-    -- Aplicar desconto
     v_total := v_total * (1.0 - v_desconto / 100.0);
 
-    -- Criar pedido
-    INSERT INTO pedidos (cliente_id, funcionario_id, forma_pagamento, status_pagamento, desconto, total)
-    VALUES (p_cliente_id, p_funcionario_id, p_forma_pgto, 'pendente', v_desconto, v_total)
+    INSERT INTO pedidos (cliente_id, funcionario_id, desconto, total)
+    VALUES (p_cliente_id, p_funcionario_id, v_desconto, v_total)
     RETURNING id INTO p_pedido_id;
 
-    -- Inserir itens e baixar estoque
     FOR i IN 1 .. array_length(p_instrumentos, 1) LOOP
         SELECT preco INTO v_preco FROM instrumentos WHERE id = p_instrumentos[i];
 
@@ -196,20 +183,14 @@ GRANT USAGE, SELECT ON SEQUENCE funcionarios_id_seq TO lojamusical_user;
 GRANT USAGE, SELECT ON SEQUENCE pedidos_id_seq      TO lojamusical_user;
 GRANT USAGE, SELECT ON SEQUENCE itens_pedido_id_seq TO lojamusical_user;
 
--- ===================== SCRIPT DE MIGRAÇÃO (banco já existente) =====================
--- Execute apenas se o banco já estava criado sem os novos campos:
+-- ===================== MIGRATION (banco já existente) =====================
+-- Execute no pgAdmin se o banco já estava criado:
 --
--- CREATE TYPE forma_pgto  AS ENUM ('dinheiro','cartao_credito','cartao_debito','pix');
--- CREATE TYPE status_pgto AS ENUM ('pendente','confirmado','recusado');
+-- ALTER TABLE pedidos
+--     DROP COLUMN IF EXISTS forma_pagamento,
+--     DROP COLUMN IF EXISTS status_pagamento;
 --
--- ALTER TABLE instrumentos
---     ADD COLUMN IF NOT EXISTS categoria         VARCHAR(100) NOT NULL DEFAULT 'outros',
---     ADD COLUMN IF NOT EXISTS fabricado_em_mari BOOLEAN      NOT NULL DEFAULT FALSE;
+-- DROP TYPE IF EXISTS forma_pgto;
+-- DROP TYPE IF EXISTS status_pgto;
 --
--- ALTER TABLE clientes
---     ADD COLUMN IF NOT EXISTS torce_flamengo    BOOLEAN NOT NULL DEFAULT FALSE,
---     ADD COLUMN IF NOT EXISTS assiste_one_piece BOOLEAN NOT NULL DEFAULT FALSE,
---     ADD COLUMN IF NOT EXISTS cidade            VARCHAR(100);
---
--- DROP TABLE IF EXISTS itens_venda;
--- DROP TABLE IF EXISTS vendas;
+-- Em seguida, recrie a procedure com o bloco CREATE OR REPLACE acima.
