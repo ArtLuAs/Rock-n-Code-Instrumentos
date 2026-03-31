@@ -7,6 +7,22 @@ CREATE DATABASE loja_musical;
 GRANT ALL PRIVILEGES ON DATABASE loja_musical TO lojamusical_user;
 \c loja_musical;
 
+-- ===================== ENUMS =====================
+CREATE TYPE forma_pgto AS ENUM (
+    'dinheiro',
+    'cartao_credito',
+    'cartao_debito',
+    'pix',
+    'boleto',
+    'berries'
+);
+
+CREATE TYPE status_pgto AS ENUM (
+    'pendente',
+    'confirmado',
+    'recusado'
+);
+
 -- ===================== INSTRUMENTOS =====================
 CREATE TABLE instrumentos (
     id                SERIAL        PRIMARY KEY,
@@ -45,15 +61,15 @@ CREATE TABLE funcionarios (
 );
 
 -- ===================== PEDIDOS =====================
--- forma_pagamento: dinheiro | cartao_credito | cartao_debito | pix | boleto | berries
 CREATE TABLE pedidos (
-    id               SERIAL        PRIMARY KEY,
-    cliente_id       INTEGER       NOT NULL REFERENCES clientes(id)     ON DELETE RESTRICT,
-    funcionario_id   INTEGER       NOT NULL REFERENCES funcionarios(id) ON DELETE RESTRICT,
-    data             DATE          NOT NULL DEFAULT CURRENT_DATE,
-    forma_pagamento  VARCHAR(20)   NOT NULL DEFAULT 'dinheiro',
-    desconto         NUMERIC(5,2)  NOT NULL DEFAULT 0.00 CHECK (desconto >= 0 AND desconto <= 100),
-    total            NUMERIC(10,2) NOT NULL DEFAULT 0.00 CHECK (total >= 0)
+    id                SERIAL        PRIMARY KEY,
+    cliente_id        INTEGER       NOT NULL REFERENCES clientes(id)     ON DELETE RESTRICT,
+    funcionario_id    INTEGER       NOT NULL REFERENCES funcionarios(id) ON DELETE RESTRICT,
+    data              DATE          NOT NULL DEFAULT CURRENT_DATE,
+    forma_pagamento   forma_pgto    NOT NULL DEFAULT 'dinheiro',
+    status_pagamento  status_pgto   NOT NULL DEFAULT 'pendente',
+    desconto          NUMERIC(5,2)  NOT NULL DEFAULT 0.00 CHECK (desconto >= 0 AND desconto <= 100),
+    total             NUMERIC(10,2) NOT NULL DEFAULT 0.00 CHECK (total >= 0)
 );
 
 -- ===================== ITENS DO PEDIDO =====================
@@ -75,6 +91,7 @@ CREATE INDEX idx_funcionarios_nome      ON funcionarios(nome);
 CREATE INDEX idx_pedidos_cliente        ON pedidos(cliente_id);
 CREATE INDEX idx_pedidos_funcionario    ON pedidos(funcionario_id);
 CREATE INDEX idx_pedidos_data           ON pedidos(data);
+CREATE INDEX idx_pedidos_status         ON pedidos(status_pagamento);
 CREATE INDEX idx_itens_pedido_pedido    ON itens_pedido(pedido_id);
 
 -- ===================== VIEW: VENDAS POR VENDEDOR/MÊS =====================
@@ -96,7 +113,7 @@ CREATE OR REPLACE PROCEDURE efetuar_compra(
     p_funcionario_id  INTEGER,
     p_instrumentos    INTEGER[],
     p_quantidades     INTEGER[],
-    p_forma_pagamento VARCHAR(20) DEFAULT 'dinheiro',
+    p_forma_pagamento forma_pgto DEFAULT 'dinheiro',
     OUT p_pedido_id   INTEGER
 )
 LANGUAGE plpgsql
@@ -145,8 +162,8 @@ BEGIN
 
     v_total := v_total * (1.0 - v_desconto / 100.0);
 
-    INSERT INTO pedidos (cliente_id, funcionario_id, forma_pagamento, desconto, total)
-    VALUES (p_cliente_id, p_funcionario_id, p_forma_pagamento, v_desconto, v_total)
+    INSERT INTO pedidos (cliente_id, funcionario_id, forma_pagamento, desconto, total, status_pagamento)
+    VALUES (p_cliente_id, p_funcionario_id, p_forma_pagamento, v_desconto, v_total, 'pendente')
     RETURNING id INTO p_pedido_id;
 
     FOR i IN 1 .. array_length(p_instrumentos, 1) LOOP
@@ -172,12 +189,3 @@ GRANT USAGE, SELECT ON SEQUENCE clientes_id_seq     TO lojamusical_user;
 GRANT USAGE, SELECT ON SEQUENCE funcionarios_id_seq TO lojamusical_user;
 GRANT USAGE, SELECT ON SEQUENCE pedidos_id_seq      TO lojamusical_user;
 GRANT USAGE, SELECT ON SEQUENCE itens_pedido_id_seq TO lojamusical_user;
-
--- ===================== MIGRATION (banco ja existente) =====================
--- Execute no pgAdmin se o banco ja estava criado:
---
--- ALTER TABLE pedidos
---     ADD COLUMN IF NOT EXISTS forma_pagamento VARCHAR(20) NOT NULL DEFAULT 'dinheiro';
---
--- DROP PROCEDURE IF EXISTS efetuar_compra(integer, integer, integer[], integer[]);
--- Em seguida recrie a procedure com o bloco acima.
