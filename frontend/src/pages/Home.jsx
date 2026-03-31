@@ -19,7 +19,7 @@ const Home = () => {
   const categorias = ["Todas", "Cordas", "Teclas", "Percussão", "Sopro", "Acessórios"];
 
   const userRole = localStorage.getItem('auth-role');
-  const userId = localStorage.getItem('auth-user');
+  const userId = parseInt(localStorage.getItem('auth-id'), 10);
 
   useEffect(() => {
     const carregarDados = async () => {
@@ -69,9 +69,10 @@ const Home = () => {
     try {
       await api.post('/vendas', {
         clienteId: userId,
-        data: new Date().toLocaleDateString('pt-BR'),
-        total: totalCarrinho,
-        itens: carrinho.map(i => ({ produtoId: i.id, quantidade: i.qtd }))
+        funcionarioId: 1,
+        formaPagamento: 'dinheiro',
+        instrumentos: carrinho.map(i => i.id),
+        quantidades: carrinho.map(i => i.qtd),
       });
       setCarrinho([]);
       setShowCart(false);
