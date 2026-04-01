@@ -29,12 +29,12 @@ const Header = ({ theme, toggleTheme }) => {
                 <Nav.Link as={Link} to="/clientes">Gestão de Clientes</Nav.Link>
                 <Nav.Link as={Link} to="/produtos">Gestão de Produtos</Nav.Link>
                 <Nav.Link as={Link} to="/vendas">Histórico de Vendas</Nav.Link>
+                <Nav.Link as={Link} to="/relatorio">Relatório Mensal</Nav.Link>
               </>
             )}
 
             {userRole === 'cliente' && (
               <>
-                {/* Links atualizados para apontarem para as novas rotas */}
                 <Nav.Link as={Link} to="/minha-conta">A Minha Conta</Nav.Link>
                 <Nav.Link as={Link} to="/meus-pedidos">Meus Pedidos</Nav.Link>
               </>
