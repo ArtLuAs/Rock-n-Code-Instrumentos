@@ -6,6 +6,9 @@
 
 SET client_encoding = 'UTF8';
 
+-- Limpa tudo na ordem correta (respeita FK)
+TRUNCATE itens_pedido, pedidos, instrumentos, clientes, funcionarios RESTART IDENTITY CASCADE;
+
 -- ===================== FUNCIONARIOS =====================
 INSERT INTO funcionarios (nome, cpf, telefone, email, cargo, senha) VALUES
   ('Carlos Drummond',  '111.111.111-11', '(83) 99101-1111', 'carlos@rockncode.com',  'vendedor', 'senha123'),
@@ -29,69 +32,59 @@ INSERT INTO clientes (nome, cpf, telefone, email, sexo, torce_flamengo, assiste_
 
 -- ===================== INSTRUMENTOS (50) =====================
 INSERT INTO instrumentos (nome, tipo, marca, preco, quantidade, categoria, fabricado_em_mari) VALUES
--- Guitarras eletricas
-  ('Strato Vulcanica RX7',        'guitarra', 'Vulcane',    2499.90, 10, 'eletrica',      FALSE),
-  ('Les Dream Pro 59',            'guitarra', 'Dreamson',   3200.00,  7, 'eletrica',      FALSE),
-  ('Telecosmico Relic',           'guitarra', 'CosmoCraft', 1899.00, 12, 'eletrica',      FALSE),
-  ('SG Furacao 2000',             'guitarra', 'Furacao',    2750.00,  5, 'eletrica',      TRUE),
-  ('Jaguar Nebulosa',             'guitarra', 'NebCo',      3100.00,  8, 'eletrica',      FALSE),
-  ('Flying V Sertanejo',          'guitarra', 'SerCraft',   2100.00,  6, 'eletrica',      TRUE),
-  ('Explorer Catingueira',        'guitarra', 'SerCraft',   1950.00,  9, 'eletrica',      TRUE),
-  ('Offset Caatinga Blue',        'guitarra', 'CosmoCraft', 2300.00,  4, 'eletrica',      FALSE),
-  ('Superstrat Venom X',          'guitarra', 'VenomGear',  2850.00, 11, 'eletrica',      FALSE),
-  ('Hollow Delta Jazz',           'guitarra', 'Jazzola',    4100.00,  3, 'semi-acustica', FALSE),
--- Guitarras acusticas
-  ('Dreadnought Sertao',          'guitarra', 'SerCraft',    899.00, 15, 'acustica',      TRUE),
-  ('Mini Jumbo Cabugi',           'guitarra', 'NebCo',       750.00, 20, 'acustica',      FALSE),
-  ('Concert Brejo Folk',          'guitarra', 'Jazzola',    1100.00, 10, 'acustica',      FALSE),
-  ('Auditorium Mandacaru',        'guitarra', 'SerCraft',    980.00, 13, 'acustica',      TRUE),
-  ('Parlor Xique-Xique',          'guitarra', 'CosmoCraft',  670.00, 18, 'acustica',      FALSE),
--- Violoes
-  ('Classico Nylon Pro',          'violao',   'Jazzola',     599.00, 20, 'classico',      FALSE),
-  ('Violao Folk Agreste',         'violao',   'SerCraft',    780.00, 14, 'folk',          TRUE),
-  ('Violao 12 Cordas Cosmos',     'violao',   'CosmoCraft', 1450.00,  6, 'folk',          FALSE),
-  ('Violao Cutaway Borborema',    'violao',   'NebCo',      1200.00,  9, 'cutaway',       FALSE),
-  ('Violao Concert Tamarindo',    'violao',   'SerCraft',    850.00, 16, 'classico',      TRUE),
+  ('Strato Vulcanica RX7',        'guitarra', 'Vulcane',    2499.90, 10, 'eletrica',        FALSE),
+  ('Les Dream Pro 59',            'guitarra', 'Dreamson',   3200.00,  7, 'eletrica',        FALSE),
+  ('Telecosmico Relic',           'guitarra', 'CosmoCraft', 1899.00, 12, 'eletrica',        FALSE),
+  ('SG Furacao 2000',             'guitarra', 'Furacao',    2750.00,  5, 'eletrica',        TRUE),
+  ('Jaguar Nebulosa',             'guitarra', 'NebCo',      3100.00,  8, 'eletrica',        FALSE),
+  ('Flying V Sertanejo',          'guitarra', 'SerCraft',   2100.00,  6, 'eletrica',        TRUE),
+  ('Explorer Catingueira',        'guitarra', 'SerCraft',   1950.00,  9, 'eletrica',        TRUE),
+  ('Offset Caatinga Blue',        'guitarra', 'CosmoCraft', 2300.00,  4, 'eletrica',        FALSE),
+  ('Superstrat Venom X',          'guitarra', 'VenomGear',  2850.00, 11, 'eletrica',        FALSE),
+  ('Hollow Delta Jazz',           'guitarra', 'Jazzola',    4100.00,  3, 'semi-acustica',   FALSE),
+  ('Dreadnought Sertao',          'guitarra', 'SerCraft',    899.00, 15, 'acustica',        TRUE),
+  ('Mini Jumbo Cabugi',           'guitarra', 'NebCo',       750.00, 20, 'acustica',        FALSE),
+  ('Concert Brejo Folk',          'guitarra', 'Jazzola',    1100.00, 10, 'acustica',        FALSE),
+  ('Auditorium Mandacaru',        'guitarra', 'SerCraft',    980.00, 13, 'acustica',        TRUE),
+  ('Parlor Xique-Xique',          'guitarra', 'CosmoCraft',  670.00, 18, 'acustica',        FALSE),
+  ('Classico Nylon Pro',          'violao',   'Jazzola',     599.00, 20, 'classico',        FALSE),
+  ('Violao Folk Agreste',         'violao',   'SerCraft',    780.00, 14, 'folk',            TRUE),
+  ('Violao 12 Cordas Cosmos',     'violao',   'CosmoCraft', 1450.00,  6, 'folk',            FALSE),
+  ('Violao Cutaway Borborema',    'violao',   'NebCo',      1200.00,  9, 'cutaway',         FALSE),
+  ('Violao Concert Tamarindo',    'violao',   'SerCraft',    850.00, 16, 'classico',        TRUE),
   ('Violao Eletrico Mangabeira',  'violao',   'Vulcane',    1699.00,  7, 'eletro-acustico', FALSE),
-  ('Violao Jumbo Umbuzeiro',      'violao',   'Dreamson',   1100.00, 11, 'folk',          FALSE),
-  ('Violao Tenor Mandacaru',      'violao',   'SerCraft',    920.00, 12, 'tenor',         TRUE),
-  ('Violao Classico Barauna',     'violao',   'Jazzola',     680.00, 17, 'classico',      FALSE),
-  ('Violao Mini Travel Caatinga', 'violao',   'NebCo',       540.00, 22, 'travel',        FALSE),
--- Baixos eletricos
-  ('Precisao Rustica 4C',         'baixo',    'Vulcane',    1800.00,  8, 'eletrico',      FALSE),
-  ('Jazz Bass Cangaco',           'baixo',    'SerCraft',   2100.00,  6, 'eletrico',      TRUE),
-  ('Fretless Xaxado',             'baixo',    'CosmoCraft', 2400.00,  4, 'fretless',      FALSE),
-  ('5 Cordas Luanda',             'baixo',    'Dreamson',   3000.00,  5, 'eletrico',      FALSE),
-  ('Active Bass Riachuelo',       'baixo',    'VenomGear',  2750.00,  7, 'ativo',         FALSE),
-  ('Stingray Semiarido',          'baixo',    'NebCo',      3200.00,  3, 'ativo',         FALSE),
-  ('Hollow Bass Serido',          'baixo',    'Jazzola',    2900.00,  4, 'semi-acustico', FALSE),
-  ('Short Scale Bodoco',          'baixo',    'SerCraft',   1600.00, 10, 'eletrico',      TRUE),
-  ('6 Cordas Litoral',            'baixo',    'Dreamson',   4200.00,  2, 'eletrico',      FALSE),
-  ('Fretless 5C Ipanema',         'baixo',    'CosmoCraft', 3500.00,  3, 'fretless',      FALSE),
--- Guitarras baritona / especiais
-  ('Baritona Arida Tuning',       'guitarra', 'VenomGear',  3400.00,  4, 'baritono',      FALSE),
-  ('8 Cordas Forro Extremo',      'guitarra', 'VenomGear',  4800.00,  2, 'extended',      FALSE),
-  ('Resonator Chapada',           'guitarra', 'Jazzola',    2200.00,  5, 'acustica',      FALSE),
-  ('Lap Steel Salgado',           'guitarra', 'CosmoCraft', 1750.00,  6, 'steel',         FALSE),
--- Violoes especiais
-  ('Harp Guitar Espinhaco',       'violao',   'Dreamson',   5500.00,  1, 'harpa',         FALSE),
-  ('Violao Flamenco Cariri',      'violao',   'Jazzola',    2100.00,  5, 'flamenco',      FALSE),
-  ('Violao Barroco Mossoro',      'violao',   'CosmoCraft', 3200.00,  2, 'barroco',       FALSE),
--- Baixos acusticos
-  ('Baixo Acustico Serido',       'baixo',    'SerCraft',   2300.00,  4, 'acustico',      TRUE),
-  ('Bass Ukulele Cajueiro',       'baixo',    'NebCo',       980.00, 12, 'acustico',      FALSE),
--- Guitarras signature
-  ('Signature Luiz Gonzaga Ed.',  'guitarra', 'SerCraft',   5900.00,  2, 'signature',     TRUE),
-  ('Signature Raul Seixas Relic', 'guitarra', 'Vulcane',    6200.00,  1, 'signature',     FALSE),
-  ('Signature Jackson Pandeiro',  'baixo',    'SerCraft',   4500.00,  2, 'signature',     TRUE),
--- Ultimos para fechar 50
-  ('Stratocosmico HSH',           'guitarra', 'CosmoCraft', 2650.00,  9, 'eletrica',      FALSE),
-  ('Telecosmico Thinline',        'guitarra', 'CosmoCraft', 2450.00,  8, 'semi-acustica', FALSE),
-  ('Precision Active Caatinga',   'baixo',    'VenomGear',  3100.00,  5, 'ativo',         FALSE);
+  ('Violao Jumbo Umbuzeiro',      'violao',   'Dreamson',   1100.00, 11, 'folk',            FALSE),
+  ('Violao Tenor Mandacaru',      'violao',   'SerCraft',    920.00, 12, 'tenor',           TRUE),
+  ('Violao Classico Barauna',     'violao',   'Jazzola',     680.00, 17, 'classico',        FALSE),
+  ('Violao Mini Travel Caatinga', 'violao',   'NebCo',       540.00, 22, 'travel',          FALSE),
+  ('Precisao Rustica 4C',         'baixo',    'Vulcane',    1800.00,  8, 'eletrico',        FALSE),
+  ('Jazz Bass Cangaco',           'baixo',    'SerCraft',   2100.00,  6, 'eletrico',        TRUE),
+  ('Fretless Xaxado',             'baixo',    'CosmoCraft', 2400.00,  4, 'fretless',        FALSE),
+  ('5 Cordas Luanda',             'baixo',    'Dreamson',   3000.00,  5, 'eletrico',        FALSE),
+  ('Active Bass Riachuelo',       'baixo',    'VenomGear',  2750.00,  7, 'ativo',           FALSE),
+  ('Stingray Semiarido',          'baixo',    'NebCo',      3200.00,  3, 'ativo',           FALSE),
+  ('Hollow Bass Serido',          'baixo',    'Jazzola',    2900.00,  4, 'semi-acustico',   FALSE),
+  ('Short Scale Bodoco',          'baixo',    'SerCraft',   1600.00, 10, 'eletrico',        TRUE),
+  ('6 Cordas Litoral',            'baixo',    'Dreamson',   4200.00,  2, 'eletrico',        FALSE),
+  ('Fretless 5C Ipanema',         'baixo',    'CosmoCraft', 3500.00,  3, 'fretless',        FALSE),
+  ('Baritona Arida Tuning',       'guitarra', 'VenomGear',  3400.00,  4, 'baritono',        FALSE),
+  ('8 Cordas Forro Extremo',      'guitarra', 'VenomGear',  4800.00,  2, 'extended',        FALSE),
+  ('Resonator Chapada',           'guitarra', 'Jazzola',    2200.00,  5, 'acustica',        FALSE),
+  ('Lap Steel Salgado',           'guitarra', 'CosmoCraft', 1750.00,  6, 'steel',           FALSE),
+  ('Harp Guitar Espinhaco',       'violao',   'Dreamson',   5500.00,  1, 'harpa',           FALSE),
+  ('Violao Flamenco Cariri',      'violao',   'Jazzola',    2100.00,  5, 'flamenco',        FALSE),
+  ('Violao Barroco Mossoro',      'violao',   'CosmoCraft', 3200.00,  2, 'barroco',         FALSE),
+  ('Baixo Acustico Serido',       'baixo',    'SerCraft',   2300.00,  4, 'acustico',        TRUE),
+  ('Bass Ukulele Cajueiro',       'baixo',    'NebCo',       980.00, 12, 'acustico',        FALSE),
+  ('Signature Luiz Gonzaga Ed.',  'guitarra', 'SerCraft',   5900.00,  2, 'signature',       TRUE),
+  ('Signature Raul Seixas Relic', 'guitarra', 'Vulcane',    6200.00,  1, 'signature',       FALSE),
+  ('Signature Jackson Pandeiro',  'baixo',    'SerCraft',   4500.00,  2, 'signature',       TRUE),
+  ('Stratocosmico HSH',           'guitarra', 'CosmoCraft', 2650.00,  9, 'eletrica',        FALSE),
+  ('Telecosmico Thinline',        'guitarra', 'CosmoCraft', 2450.00,  8, 'semi-acustica',   FALSE),
+  ('Precision Active Caatinga',   'baixo',    'VenomGear',  3100.00,  5, 'ativo',           FALSE);
 
 -- ===================== PEDIDOS (50) =====================
 INSERT INTO pedidos (cliente_id, funcionario_id, data, forma_pagamento, status_pagamento, desconto, total) VALUES
--- Janeiro 2026
   (1, 1, '2026-01-03', 'pix',            'confirmado',  0.00, 2499.90),
   (2, 1, '2026-01-05', 'cartao_credito', 'confirmado', 10.00, 2880.00),
   (3, 2, '2026-01-07', 'boleto',         'pendente',   10.00, 1709.10),
@@ -102,7 +95,6 @@ INSERT INTO pedidos (cliente_id, funcionario_id, data, forma_pagamento, status_p
   (8, 2, '2026-01-20', 'pix',            'confirmado', 10.00,  990.00),
   (9, 3, '2026-01-22', 'dinheiro',       'confirmado', 10.00,  612.00),
   (10,1, '2026-01-25', 'cartao_credito', 'confirmado', 10.00, 5310.00),
--- Fevereiro 2026
   (1, 2, '2026-02-02', 'pix',            'confirmado',  0.00, 3100.00),
   (2, 3, '2026-02-04', 'berries',        'pendente',   10.00, 2025.00),
   (3, 1, '2026-02-06', 'cartao_credito', 'confirmado', 10.00, 2160.00),
@@ -113,7 +105,6 @@ INSERT INTO pedidos (cliente_id, funcionario_id, data, forma_pagamento, status_p
   (8, 3, '2026-02-18', 'pix',            'pendente',   10.00,  855.00),
   (9, 5, '2026-02-20', 'dinheiro',       'confirmado', 10.00, 1440.00),
   (10,4, '2026-02-24', 'berries',        'confirmado', 10.00, 2970.00),
--- Marco 2026
   (1, 1, '2026-03-01', 'pix',            'confirmado',  0.00, 1899.00),
   (2, 2, '2026-03-03', 'cartao_credito', 'confirmado', 10.00, 2970.00),
   (3, 3, '2026-03-05', 'boleto',         'pendente',   10.00, 1440.00),
@@ -129,7 +120,6 @@ INSERT INTO pedidos (cliente_id, funcionario_id, data, forma_pagamento, status_p
   (3, 1, '2026-03-27', 'cartao_credito', 'confirmado', 10.00, 3510.00),
   (4, 3, '2026-03-28', 'dinheiro',       'confirmado', 10.00,  621.00),
   (5, 5, '2026-03-30', 'pix',            'confirmado', 10.00, 1890.00),
--- Abril 2026
   (6, 1, '2026-04-01', 'pix',            'confirmado',  0.00, 2750.00),
   (7, 2, '2026-04-02', 'cartao_credito', 'pendente',   10.00, 4320.00),
   (8, 4, '2026-04-03', 'dinheiro',       'confirmado', 10.00,  540.00),
