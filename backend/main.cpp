@@ -445,7 +445,7 @@ int main() {
     svr.Get("/api/vendas", [conn](const httplib::Request&, httplib::Response& res) {
         PGresult* result = PQexec(conn,
             "SELECT p.id, c.nome AS cliente, c.id AS cliente_id, "
-            "COALESCE(f.nome, '—') AS vendedor, "
+            "COALESCE(f.nome, '\xe2\x80\x94') AS vendedor, "
             "p.data, p.forma_pagamento::text, p.status_pagamento::text, p.desconto, p.total "
             "FROM pedidos p "
             "JOIN clientes c ON c.id = p.cliente_id "
@@ -471,7 +471,6 @@ int main() {
 
     // ==================================================
     // PATCH /api/vendas/:id/status
-    // Body: { status: "confirmado"|"recusado"|"pendente", funcionarioId: N }
     // ==================================================
     svr.Patch("/api/vendas/(\\d+)/status", [conn](const httplib::Request& req, httplib::Response& res) {
         try {
@@ -584,8 +583,10 @@ int main() {
 
     // ==================================================
     // GET /api/relatorio/mensal?ano=YYYY&mes=MM
+    // Usa a view vw_vendas_por_vendedor_mes para o ranking de vendedores.
     // Retorna: totalVendas, receitaConfirmada, receitaPendente,
-    //          ticketMedio, produtoMaisVendido, topProdutos, vendas
+    //          ticketMedio, produtoMaisVendido, topProdutos,
+    //          rankingVendedores (da view), vendas
     // ==================================================
     svr.Get("/api/relatorio/mensal", [conn](const httplib::Request& req, httplib::Response& res) {
         string ano = req.get_param_value("ano");
@@ -595,8 +596,9 @@ int main() {
             errResp(res, "Parametros 'ano' e 'mes' sao obrigatorios"); return;
         }
 
-        // -- 1. Lista de vendas do mes --
         const char* p2[2] = {ano.c_str(), mes.c_str()};
+
+        // -- 1. Lista de vendas do mes --
         PGresult* rVendas = PQexecParams(conn,
             "SELECT p.id, c.nome AS cliente, "
             "TO_CHAR(p.data, 'DD/MM/YYYY') AS data, "
@@ -618,7 +620,6 @@ int main() {
             if (status == "confirmado") recConf += total;
             if (status == "pendente")   recPend += total;
             totalGeral += total;
-
             vendas.push_back({
                 {"id",              atoi(PQgetvalue(rVendas, i, 0))},
                 {"cliente",         PQgetvalue(rVendas, i, 1)},
@@ -655,7 +656,6 @@ int main() {
                 {"receita",    atof(PQgetvalue(rTop, i, 2))}
             });
         }
-
         json prodMaisVendido = nullptr;
         if (nTop > 0) {
             prodMaisVendido = {
@@ -665,6 +665,29 @@ int main() {
         }
         PQclear(rTop);
 
+        // -- 3. Ranking de vendedores via vw_vendas_por_vendedor_mes --
+        // A view ja filtra por mes (coluna mes = DATE_TRUNC('month', data))
+        // Montamos a data de referencia como '${ano}-${mes}-01'
+        string dataRef = ano + "-" + (mes.size() == 1 ? "0" + mes : mes) + "-01";
+        const char* p1[1] = {dataRef.c_str()};
+        PGresult* rVend = PQexecParams(conn,
+            "SELECT vendedor, total_pedidos, total_vendido "
+            "FROM vw_vendas_por_vendedor_mes "
+            "WHERE mes = $1::date "
+            "ORDER BY total_vendido DESC",
+            1, nullptr, p1, nullptr, nullptr, 0);
+
+        json rankingVendedores = json::array();
+        int nVend = PQntuples(rVend);
+        for (int i = 0; i < nVend; i++) {
+            rankingVendedores.push_back({
+                {"vendedor",      PQgetvalue(rVend, i, 0)},
+                {"totalPedidos",  atoi(PQgetvalue(rVend, i, 1))},
+                {"totalVendido",  atof(PQgetvalue(rVend, i, 2))}
+            });
+        }
+        PQclear(rVend);
+
         json resposta = {
             {"totalVendas",        nVendas},
             {"receitaConfirmada",  recConf},
@@ -672,6 +695,7 @@ int main() {
             {"ticketMedio",        ticketMedio},
             {"produtoMaisVendido", prodMaisVendido},
             {"topProdutos",        topProdutos},
+            {"rankingVendedores",  rankingVendedores},
             {"vendas",             vendas}
         };
         jsonResp(res, resposta);
