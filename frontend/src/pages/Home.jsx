@@ -4,12 +4,12 @@ import { useOutletContext } from 'react-router-dom';
 import { api } from '../services/api';
 
 const FORMAS_PAGAMENTO = [
-  { value: 'dinheiro',       label: '💵 Dinheiro' },
-  { value: 'cartao_credito', label: '💳 Cartão de Crédito' },
-  { value: 'cartao_debito',  label: '💳 Cartão de Débito' },
-  { value: 'pix',            label: '⚡ Pix' },
-  { value: 'boleto',         label: '📄 Boleto' },
-  { value: 'berries',        label: '🍓 Berries' },
+  { value: 'dinheiro',       label: '\uD83D\uDCB5 Dinheiro' },
+  { value: 'cartao_credito', label: '\uD83D\uDCB3 Cart\u00E3o de Cr\u00E9dito' },
+  { value: 'cartao_debito',  label: '\uD83D\uDCB3 Cart\u00E3o de D\u00E9bito' },
+  { value: 'pix',            label: '\u26A1 Pix' },
+  { value: 'boleto',         label: '\uD83D\uDCC4 Boleto' },
+  { value: 'berries',        label: '\uD83C\uDF53 Berries' },
 ];
 
 const Home = () => {
@@ -22,8 +22,16 @@ const Home = () => {
   const [isProcessing, setIsProcessing]     = useState(false);
   const [formaPagamento, setFormaPagamento] = useState('dinheiro');
 
+  // Filtros de Categoria na Vitrine (alinhado com o Banco de Dados)
   const [categoriaAtiva, setCategoriaAtiva] = useState('Todas');
-  const categorias = ["Todas", "Cordas", "Teclas", "Percussão", "Sopro", "Acessórios"];
+  const categorias = ["Todas", "Guitarra", "Viol\u00E3o", "Baixo"];
+
+  // Mapeamento: traduz o nome do bot\u00E3o para o valor exato da coluna 'tipo' no BD
+  const mapTipoBanco = {
+    "Guitarra": "guitarra",
+    "Viol\u00E3o": "violao",
+    "Baixo": "baixo"
+  };
 
   const userRole = localStorage.getItem('auth-role');
   const userId   = parseInt(localStorage.getItem('auth-id'), 10);
@@ -74,7 +82,7 @@ const Home = () => {
     try {
       await api.post('/vendas', {
         clienteId:      userId,
-        funcionarioId:  null,   // cliente faz o pedido; nenhum funcionário vinculado
+        funcionarioId:  null, // cliente faz o pedido; nenhum funcion\u00E1rio vinculado
         formaPagamento: formaPagamento,
         instrumentos:   carrinho.map(i => i.id),
         quantidades:    carrinho.map(i => i.qtd),
@@ -91,10 +99,17 @@ const Home = () => {
     }
   };
 
-  const destaques     = produtos.filter(p => p.destaque).slice(0, 2);
-  const catalogoGeral = produtos.filter(p =>
-    categoriaAtiva === 'Todas' || p.categoria === categoriaAtiva
-  );
+  // Filtra destaques avaliando p.tipo com base no bot\u00E3o ativo
+  const destaques = produtos.filter(p => {
+    const matchTipo = categoriaAtiva === 'Todas' || p.tipo === mapTipoBanco[categoriaAtiva];
+    return p.destaque && matchTipo;
+  }).slice(0, 2);
+
+  // Filtra o cat\u00E1logo geral avaliando p.tipo
+  const catalogoGeral = produtos.filter(p => {
+    if (categoriaAtiva === 'Todas') return true;
+    return p.tipo === mapTipoBanco[categoriaAtiva];
+  });
 
   return (
     <Container className="mt-4">
@@ -104,17 +119,17 @@ const Home = () => {
         </Alert>
       )}
 
-      {/* Hero */}
+      {/* Hero Section */}
       <div className={`p-5 mb-4 rounded-3 ${theme === 'dark' ? 'bg-dark border border-secondary' : 'bg-light shadow-sm'}`}>
         <Row className="align-items-center">
           <Col lg={8}>
-            <h1 className="display-5 fw-bold">Rock 'n' Code Instrumentos 🎸</h1>
-            <p className="fs-4 text-muted">A sua música começa aqui. Explore a nossa coleção curada por especialistas.</p>
+            <h1 className="display-5 fw-bold">Rock 'n' Code Instrumentos \uD83C\uDFB8</h1>
+            <p className="fs-4 text-muted">A sua m\u00FAsica come\u00E7a aqui. Explore a nossa cole\u00E7\u00E3o curada por especialistas.</p>
           </Col>
           <Col lg={4} className="text-lg-end">
             {userRole === 'cliente' && (
               <Button variant="primary" size="lg" onClick={handleToggleCart}>
-                🛒 Carrinho ({carrinho.length})
+                \uD83D\uDED2 Carrinho ({carrinho.length})
               </Button>
             )}
           </Col>
@@ -122,12 +137,32 @@ const Home = () => {
       </div>
 
       {isLoading ? (
-        <div className="text-center my-5">Carregando catálogo...</div>
+        <div className="text-center my-5">Carregando cat\u00E1logo...</div>
       ) : (
         <>
+          {/* Navega\u00E7\u00E3o de Filtros */}
+          <div className="mb-4">
+            <h2 className="mb-3">Explore por Tipo</h2>
+            <Nav variant="pills" className="gap-2">
+              {categorias.map(cat => (
+                <Nav.Item key={cat}>
+                  <Nav.Link
+                    active={categoriaAtiva === cat}
+                    onClick={() => setCategoriaAtiva(cat)}
+                    className="rounded-pill border"
+                    style={{ cursor: 'pointer' }}
+                  >
+                    {cat}
+                  </Nav.Link>
+                </Nav.Item>
+              ))}
+            </Nav>
+          </div>
+
+          {/* Se\u00E7\u00E3o de Destaques Filtrada */}
           {destaques.length > 0 && (
             <div className="mb-5">
-              <h2 className="mb-4">🔥 Em Destaque</h2>
+              <h3 className="mb-4 text-danger">\uD83D\uDD25 Em Destaque {categoriaAtiva !== 'Todas' ? `(${categoriaAtiva})` : ''}</h3>
               <Row>
                 {destaques.map(p => (
                   <Col md={6} key={`dest-${p.id}`} className="mb-3">
@@ -135,7 +170,7 @@ const Home = () => {
                       <Card.Body className="p-4 d-flex flex-column">
                         <Badge bg="warning" text="dark" className="mb-2 align-self-start">OFERTA ESPECIAL</Badge>
                         <Card.Title className="display-6">{p.nome}</Card.Title>
-                        <Card.Text className="text-muted">{p.categoria}</Card.Text>
+                        <Card.Text className="text-muted text-capitalize">{p.marca} \u2022 {p.tipo}</Card.Text>
                         <div className="mt-auto d-flex justify-content-between align-items-center">
                           <h3 className="text-success mb-0">R$ {Number(p.preco).toFixed(2)}</h3>
                           {userRole === 'cliente' && (
@@ -150,49 +185,41 @@ const Home = () => {
             </div>
           )}
 
+          {/* Vitrine Geral Filtrada */}
           <div className="mb-5">
-            <h2 className="mb-4">Explore a Nossa Loja</h2>
-            <Nav variant="pills" className="mb-4 gap-2">
-              {categorias.map(cat => (
-                <Nav.Item key={cat}>
-                  <Nav.Link
-                    active={categoriaAtiva === cat}
-                    onClick={() => setCategoriaAtiva(cat)}
-                    className="rounded-pill border"
-                    style={{ cursor: 'pointer' }}
-                  >
-                    {cat}
-                  </Nav.Link>
-                </Nav.Item>
-              ))}
-            </Nav>
-            <Row>
-              {catalogoGeral.map(p => (
-                <Col xs={12} sm={6} md={4} lg={3} key={p.id} className="mb-4">
-                  <Card className={`h-100 ${theme === 'dark' ? 'bg-dark border-secondary' : 'shadow-sm'}`}>
-                    <Card.Body className="d-flex flex-column p-3">
-                      <div className="mb-2">
-                        <Badge bg="info" className="fw-normal">{p.categoria}</Badge>
-                      </div>
-                      <Card.Title className="fs-5">{p.nome}</Card.Title>
-                      <h5 className="text-success mt-auto">R$ {Number(p.preco).toFixed(2)}</h5>
-                      <div className="text-muted small mb-2">
-                        {p.quantidade > 0 ? `${p.quantidade} em estoque` : 'Esgotado'}
-                      </div>
-                      {userRole === 'cliente' && (
-                        <Button
-                          variant="outline-primary" size="sm"
-                          disabled={p.quantidade <= 0}
-                          onClick={() => adicionarAoCarrinho(p)}
-                        >
-                          Adicionar
-                        </Button>
-                      )}
-                    </Card.Body>
-                  </Card>
-                </Col>
-              ))}
-            </Row>
+            <h3 className="mb-4">Cat\u00E1logo Geral</h3>
+            {catalogoGeral.length === 0 ? (
+              <p className="text-muted">Nenhum instrumento encontrado para este tipo.</p>
+            ) : (
+              <Row>
+                {catalogoGeral.map(p => (
+                  <Col xs={12} sm={6} md={4} lg={3} key={p.id} className="mb-4">
+                    <Card className={`h-100 ${theme === 'dark' ? 'bg-dark border-secondary' : 'shadow-sm'}`}>
+                      <Card.Body className="d-flex flex-column p-3">
+                        <div className="mb-2">
+                          <Badge bg="info" className="fw-normal text-capitalize">{p.tipo}</Badge>
+                        </div>
+                        <Card.Title className="fs-5">{p.nome}</Card.Title>
+                        <Card.Text className="text-muted small">{p.marca}</Card.Text>
+                        <h5 className="text-success mt-auto">R$ {Number(p.preco).toFixed(2)}</h5>
+                        <div className="text-muted small mb-2">
+                          {p.quantidade > 0 ? `${p.quantidade} em estoque` : 'Esgotado'}
+                        </div>
+                        {userRole === 'cliente' && (
+                          <Button
+                            variant="outline-primary" size="sm"
+                            disabled={p.quantidade <= 0}
+                            onClick={() => adicionarAoCarrinho(p)}
+                          >
+                            Adicionar
+                          </Button>
+                        )}
+                      </Card.Body>
+                    </Card>
+                  </Col>
+                ))}
+              </Row>
+            )}
           </div>
         </>
       )}
@@ -201,11 +228,11 @@ const Home = () => {
       <Offcanvas show={showCart} onHide={handleToggleCart} placement="end"
                  className={theme === 'dark' ? 'bg-dark text-light' : ''}>
         <Offcanvas.Header closeButton closeVariant={theme === 'dark' ? 'white' : undefined}>
-          <Offcanvas.Title>📦 Seu Carrinho</Offcanvas.Title>
+          <Offcanvas.Title>\uD83D\uDCE6 Seu Carrinho</Offcanvas.Title>
         </Offcanvas.Header>
         <Offcanvas.Body className="d-flex flex-column">
           {carrinho.length === 0 ? (
-            <p className="text-center mt-5 text-muted">O carrinho está vazio.</p>
+            <p className="text-center mt-5 text-muted">O carrinho est\u00E1 vazio.</p>
           ) : (
             <>
               <ListGroup variant="flush" className="mb-3">
@@ -227,7 +254,7 @@ const Home = () => {
               </ListGroup>
 
               {/* Forma de Pagamento */}
-              <Form.Group className="mb-3 px-1">
+              <Form.Group className="mb-3 mt-2 px-1">
                 <Form.Label className="fw-bold">Forma de Pagamento</Form.Label>
                 <Form.Select
                   value={formaPagamento}
