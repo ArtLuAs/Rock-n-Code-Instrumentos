@@ -14,17 +14,14 @@ const FORMAS_PAGAMENTO = [
 
 const Home = () => {
   const { theme } = useOutletContext();
-  const [produtos, setProdutos] = useState([]);
-  const [isLoading, setIsLoading] = useState(false);
-  const [alerta, setAlerta] = useState({ show: false, variant: '', message: '' });
-
-  // Estados do Carrinho
-  const [carrinho, setCarrinho]         = useState([]);
-  const [showCart, setShowCart]         = useState(false);
-  const [isProcessing, setIsProcessing] = useState(false);
+  const [produtos, setProdutos]             = useState([]);
+  const [isLoading, setIsLoading]           = useState(false);
+  const [alerta, setAlerta]                 = useState({ show: false, variant: '', message: '' });
+  const [carrinho, setCarrinho]             = useState([]);
+  const [showCart, setShowCart]             = useState(false);
+  const [isProcessing, setIsProcessing]     = useState(false);
   const [formaPagamento, setFormaPagamento] = useState('dinheiro');
 
-  // Filtros de Categoria na Vitrine
   const [categoriaAtiva, setCategoriaAtiva] = useState('Todas');
   const categorias = ["Todas", "Cordas", "Teclas", "Percussão", "Sopro", "Acessórios"];
 
@@ -77,7 +74,7 @@ const Home = () => {
     try {
       await api.post('/vendas', {
         clienteId:      userId,
-        funcionarioId:  1,
+        funcionarioId:  null,   // cliente faz o pedido; nenhum funcionário vinculado
         formaPagamento: formaPagamento,
         instrumentos:   carrinho.map(i => i.id),
         quantidades:    carrinho.map(i => i.qtd),
@@ -94,7 +91,7 @@ const Home = () => {
     }
   };
 
-  const destaques    = produtos.filter(p => p.destaque).slice(0, 2);
+  const destaques     = produtos.filter(p => p.destaque).slice(0, 2);
   const catalogoGeral = produtos.filter(p =>
     categoriaAtiva === 'Todas' || p.categoria === categoriaAtiva
   );
@@ -107,7 +104,7 @@ const Home = () => {
         </Alert>
       )}
 
-      {/* Hero Section */}
+      {/* Hero */}
       <div className={`p-5 mb-4 rounded-3 ${theme === 'dark' ? 'bg-dark border border-secondary' : 'bg-light shadow-sm'}`}>
         <Row className="align-items-center">
           <Col lg={8}>
@@ -128,7 +125,6 @@ const Home = () => {
         <div className="text-center my-5">Carregando catálogo...</div>
       ) : (
         <>
-          {/* Destaques */}
           {destaques.length > 0 && (
             <div className="mb-5">
               <h2 className="mb-4">🔥 Em Destaque</h2>
@@ -154,7 +150,6 @@ const Home = () => {
             </div>
           )}
 
-          {/* Vitrine Geral */}
           <div className="mb-5">
             <h2 className="mb-4">Explore a Nossa Loja</h2>
             <Nav variant="pills" className="mb-4 gap-2">
@@ -231,7 +226,7 @@ const Home = () => {
                 ))}
               </ListGroup>
 
-              {/* Seleção de Forma de Pagamento */}
+              {/* Forma de Pagamento */}
               <Form.Group className="mb-3 px-1">
                 <Form.Label className="fw-bold">Forma de Pagamento</Form.Label>
                 <Form.Select

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Table, Button, Container, Row, Col, Alert, InputGroup, Form, Badge, ButtonGroup } from 'react-bootstrap';
+import { Table, Button, Container, Row, Col, Alert, InputGroup, Form, Badge } from 'react-bootstrap';
 import { Link, useOutletContext } from 'react-router-dom';
 import { api } from '../services/api';
 
@@ -16,14 +16,15 @@ const statusLabel = (status) => {
 };
 
 const VendasList = () => {
-  const { theme } = useOutletContext();
-  const [vendas, setVendas]         = useState([]);
-  const [isLoading, setIsLoading]   = useState(false);
-  const [alerta, setAlerta]         = useState({ show: false, variant: '', message: '' });
-  const [atualizando, setAtualizando] = useState(null); // id da venda sendo atualizada
+  const { theme }   = useOutletContext();
+  const funcionarioId = parseInt(localStorage.getItem('auth-id'), 10);
 
-  const [searchTerm, setSearchTerm] = useState('');
-  const [sortBy, setSortBy]         = useState('data-desc');
+  const [vendas, setVendas]             = useState([]);
+  const [isLoading, setIsLoading]       = useState(false);
+  const [alerta, setAlerta]             = useState({ show: false, variant: '', message: '' });
+  const [atualizando, setAtualizando]   = useState(null);
+  const [searchTerm, setSearchTerm]     = useState('');
+  const [sortBy, setSortBy]             = useState('data-desc');
 
   const mostrarAlerta = (variant, message) => {
     setAlerta({ show: true, variant, message });
@@ -47,10 +48,21 @@ const VendasList = () => {
   const handleAlterarStatus = async (vendaId, novoStatus) => {
     setAtualizando(vendaId);
     try {
-      await api.patch(`/vendas/${vendaId}/status`, { status: novoStatus });
-      // Atualiza localmente sem recarregar tudo
+      // Envia o ID do funcionario logado ao confirmar/recusar
+      await api.patch(`/vendas/${vendaId}/status`, {
+        status:        novoStatus,
+        funcionarioId: novoStatus !== 'pendente' ? funcionarioId : null,
+      });
       setVendas(prev =>
-        prev.map(v => v.id === vendaId ? { ...v, statusPagamento: novoStatus } : v)
+        prev.map(v => v.id === vendaId
+          ? { ...v,
+              statusPagamento: novoStatus,
+              confirmadoPor: novoStatus !== 'pendente'
+                ? localStorage.getItem('auth-nome')
+                : null
+            }
+          : v
+        )
       );
       mostrarAlerta('success', `Venda #${vendaId} marcada como "${novoStatus}".`);
     } catch (err) {
@@ -138,7 +150,7 @@ const VendasList = () => {
             <th>Data</th>
             <th>Pagamento</th>
             <th>Total (R$)</th>
-            <th>Status</th>
+            <th>Status / Confirmado por</th>
           </tr>
         </thead>
         <tbody>
@@ -158,38 +170,33 @@ const VendasList = () => {
                 <td className="align-middle">R$ {Number(venda.total).toFixed(2)}</td>
                 <td className="align-middle">
                   <div className="d-flex align-items-center gap-2 flex-wrap">
-                    <Badge bg={statusVariant(venda.statusPagamento)} className="me-1">
-                      {statusLabel(venda.statusPagamento)}
-                    </Badge>
+                    <div>
+                      <Badge bg={statusVariant(venda.statusPagamento)}>
+                        {statusLabel(venda.statusPagamento)}
+                      </Badge>
+                      {venda.confirmadoPor && (
+                        <div className="text-muted" style={{ fontSize: '0.75rem' }}>
+                          por {venda.confirmadoPor}
+                        </div>
+                      )}
+                    </div>
                     {venda.statusPagamento !== 'confirmado' && (
-                      <Button
-                        size="sm" variant="outline-success"
+                      <Button size="sm" variant="outline-success"
                         disabled={atualizando === venda.id}
                         onClick={() => handleAlterarStatus(venda.id, 'confirmado')}
-                        title="Confirmar pagamento"
-                      >
-                        ✔
-                      </Button>
+                        title="Confirmar pagamento">✔</Button>
                     )}
                     {venda.statusPagamento !== 'recusado' && (
-                      <Button
-                        size="sm" variant="outline-danger"
+                      <Button size="sm" variant="outline-danger"
                         disabled={atualizando === venda.id}
                         onClick={() => handleAlterarStatus(venda.id, 'recusado')}
-                        title="Recusar pagamento"
-                      >
-                        ✘
-                      </Button>
+                        title="Recusar pagamento">✘</Button>
                     )}
                     {venda.statusPagamento !== 'pendente' && (
-                      <Button
-                        size="sm" variant="outline-warning"
+                      <Button size="sm" variant="outline-warning"
                         disabled={atualizando === venda.id}
                         onClick={() => handleAlterarStatus(venda.id, 'pendente')}
-                        title="Voltar para pendente"
-                      >
-                        ↩
-                      </Button>
+                        title="Voltar para pendente">↩</Button>
                     )}
                   </div>
                 </td>
