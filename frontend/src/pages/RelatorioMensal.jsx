@@ -29,7 +29,7 @@ const RelatorioMensal = () => {
       const data = await api.get(`/relatorio/mensal?ano=${ano}&mes=${mes}`);
       setDados(data);
     } catch (e) {
-      setErro('Erro ao carregar relat\u00f3rio: ' + e.message);
+      setErro('Erro ao carregar relatório: ' + e.message);
     } finally {
       setIsLoading(false);
     }
@@ -43,10 +43,10 @@ const RelatorioMensal = () => {
   return (
     <Container className="mt-4">
       <Row className="mb-3 align-items-center">
-        <Col md={6}><h2>Relat\u00f3rio Mensal</h2></Col>
+        <Col md={6}><h2>Relatório Mensal</h2></Col>
         <Col md={3} className="ms-auto">
           <Form.Group>
-            <Form.Label className="fw-bold">M\u00eas / Ano:</Form.Label>
+            <Form.Label className="fw-bold">Mês / Ano:</Form.Label>
             <Form.Control
               type="month"
               value={periodo}
@@ -95,7 +95,7 @@ const RelatorioMensal = () => {
             <Col md={3} sm={6}>
               <Card bg={theme === 'dark' ? 'dark' : 'light'} className="border text-center h-100">
                 <Card.Body>
-                  <div className="text-muted small mb-1">Ticket M\u00e9dio</div>
+                  <div className="text-muted small mb-1">Ticket Médio</div>
                   <div className="fs-4 fw-bold">{fmt(dados.ticketMedio)}</div>
                 </Card.Body>
               </Card>
@@ -105,8 +105,8 @@ const RelatorioMensal = () => {
           {/* Produto mais vendido */}
           {dados.produtoMaisVendido && (
             <Alert variant="info" className="mb-4">
-              \ud83c\udfc6 <strong>Produto mais vendido:</strong>{' '}
-              {dados.produtoMaisVendido.nome} \u2014{' '}
+              <strong>Produto mais vendido:</strong>{' '}
+              {dados.produtoMaisVendido.nome} {' '}
               {dados.produtoMaisVendido.quantidade} unidade(s) vendida(s)
             </Alert>
           )}
@@ -114,9 +114,9 @@ const RelatorioMensal = () => {
           <Row className="g-4 mb-4">
             {/* Tabela de vendas */}
             <Col lg={8}>
-              <h5 className="mb-3">Vendas do per\u00edodo</h5>
+              <h5 className="mb-3">Vendas do período</h5>
               {dados.vendas.length === 0 ? (
-                <Alert variant="secondary">Nenhuma venda neste per\u00edodo.</Alert>
+                <Alert variant="secondary">Nenhuma venda neste período.</Alert>
               ) : (
                 <Table variant={theme} striped bordered hover responsive>
                   <thead>
@@ -180,17 +180,17 @@ const RelatorioMensal = () => {
           {/* Ranking de vendedores (vw_vendas_por_vendedor_mes) */}
           <Row>
             <Col>
-              <h5 className="mb-3">\ud83d\udcca Ranking de Vendedores</h5>
+              <h5 className="mb-3">Ranking de Vendedores</h5>
               <p className="text-muted small mb-2">
                 Gerado a partir da view <code>vw_vendas_por_vendedor_mes</code>.
               </p>
               {dados.rankingVendedores.length === 0 ? (
-                <Alert variant="secondary">Nenhum vendedor registrado neste per\u00edodo.</Alert>
+                <Alert variant="secondary">Nenhum vendedor registrado neste período.</Alert>
               ) : (
                 <Table variant={theme} striped bordered hover responsive>
                   <thead>
                     <tr>
-                      <th>Posi\u00e7\u00e3o</th>
+                      <th>Posição</th>
                       <th>Vendedor</th>
                       <th className="text-center">Pedidos</th>
                       <th>Total Vendido</th>
