@@ -61,15 +61,18 @@ CREATE TABLE funcionarios (
 );
 
 -- ===================== PEDIDOS =====================
+-- funcionario_id    : quem REGISTROU o pedido (NULL quando o próprio cliente faz pelo site)
+-- confirmado_por_id : quem CONFIRMOU o pagamento (NULL até ser confirmado/recusado)
 CREATE TABLE pedidos (
-    id                SERIAL        PRIMARY KEY,
-    cliente_id        INTEGER       NOT NULL REFERENCES clientes(id)     ON DELETE RESTRICT,
-    funcionario_id    INTEGER       NOT NULL REFERENCES funcionarios(id) ON DELETE RESTRICT,
-    data              DATE          NOT NULL DEFAULT CURRENT_DATE,
-    forma_pagamento   forma_pgto    NOT NULL DEFAULT 'dinheiro',
-    status_pagamento  status_pgto   NOT NULL DEFAULT 'pendente',
-    desconto          NUMERIC(5,2)  NOT NULL DEFAULT 0.00 CHECK (desconto >= 0 AND desconto <= 100),
-    total             NUMERIC(10,2) NOT NULL DEFAULT 0.00 CHECK (total >= 0)
+    id                  SERIAL        PRIMARY KEY,
+    cliente_id          INTEGER       NOT NULL REFERENCES clientes(id)          ON DELETE RESTRICT,
+    funcionario_id      INTEGER                REFERENCES funcionarios(id)      ON DELETE RESTRICT,
+    confirmado_por_id   INTEGER                REFERENCES funcionarios(id)      ON DELETE SET NULL,
+    data                DATE          NOT NULL DEFAULT CURRENT_DATE,
+    forma_pagamento     forma_pgto    NOT NULL DEFAULT 'dinheiro',
+    status_pagamento    status_pgto   NOT NULL DEFAULT 'pendente',
+    desconto            NUMERIC(5,2)  NOT NULL DEFAULT 0.00 CHECK (desconto >= 0 AND desconto <= 100),
+    total               NUMERIC(10,2) NOT NULL DEFAULT 0.00 CHECK (total >= 0)
 );
 
 -- ===================== ITENS DO PEDIDO =====================
@@ -90,6 +93,7 @@ CREATE INDEX idx_clientes_cidade        ON clientes(cidade);
 CREATE INDEX idx_funcionarios_nome      ON funcionarios(nome);
 CREATE INDEX idx_pedidos_cliente        ON pedidos(cliente_id);
 CREATE INDEX idx_pedidos_funcionario    ON pedidos(funcionario_id);
+CREATE INDEX idx_pedidos_confirmado_por ON pedidos(confirmado_por_id);
 CREATE INDEX idx_pedidos_data           ON pedidos(data);
 CREATE INDEX idx_pedidos_status         ON pedidos(status_pagamento);
 CREATE INDEX idx_itens_pedido_pedido    ON itens_pedido(pedido_id);
@@ -108,8 +112,7 @@ GROUP BY f.id, f.nome, DATE_TRUNC('month', p.data)
 ORDER BY mes DESC, total_vendido DESC;
 
 -- ===================== STORED PROCEDURE: EFETUAR COMPRA =====================
--- Assinatura: OUT antes do parâmetro com DEFAULT (regra do Postgres).
--- forma_pagamento é VARCHAR; o cast para forma_pgto ocorre no INSERT interno.
+-- p_funcionario_id pode ser NULL (pedido feito pelo próprio cliente no site).
 CREATE OR REPLACE PROCEDURE efetuar_compra(
     p_cliente_id      INTEGER,
     p_funcionario_id  INTEGER,
@@ -134,7 +137,9 @@ BEGIN
     IF NOT EXISTS (SELECT 1 FROM clientes WHERE id = p_cliente_id) THEN
         RAISE EXCEPTION 'Cliente % não encontrado.', p_cliente_id;
     END IF;
-    IF NOT EXISTS (SELECT 1 FROM funcionarios WHERE id = p_funcionario_id) THEN
+    -- Só valida funcionário se um foi informado
+    IF p_funcionario_id IS NOT NULL AND
+       NOT EXISTS (SELECT 1 FROM funcionarios WHERE id = p_funcionario_id) THEN
         RAISE EXCEPTION 'Funcionário % não encontrado.', p_funcionario_id;
     END IF;
 
