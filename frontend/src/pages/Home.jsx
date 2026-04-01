@@ -24,12 +24,12 @@ const Home = () => {
 
   // Filtros de Categoria na Vitrine (alinhado com o Banco de Dados)
   const [categoriaAtiva, setCategoriaAtiva] = useState('Todas');
-  const categorias = ["Todas", "Guitarra", "Viol\u00E3o", "Baixo"];
+  const categorias = ["Todas", "Guitarra", "Violão", "Baixo"];
 
-  // Mapeamento: traduz o nome do bot\u00E3o para o valor exato da coluna 'tipo' no BD
+  // Mapeamento: traduz o nome do botão para o valor exato da coluna 'tipo' no BD
   const mapTipoBanco = {
     "Guitarra": "guitarra",
-    "Viol\u00E3o": "violao",
+    "Violão": "violao",
     "Baixo": "baixo"
   };
 
@@ -82,7 +82,7 @@ const Home = () => {
     try {
       await api.post('/vendas', {
         clienteId:      userId,
-        funcionarioId:  null, // cliente faz o pedido; nenhum funcion\u00E1rio vinculado
+        funcionarioId:  null, // cliente faz o pedido; nenhum funcionário vinculado
         formaPagamento: formaPagamento,
         instrumentos:   carrinho.map(i => i.id),
         quantidades:    carrinho.map(i => i.qtd),
@@ -99,13 +99,13 @@ const Home = () => {
     }
   };
 
-  // Filtra destaques avaliando p.tipo com base no bot\u00E3o ativo
+  // Filtra destaques avaliando p.tipo com base no botão ativo
   const destaques = produtos.filter(p => {
     const matchTipo = categoriaAtiva === 'Todas' || p.tipo === mapTipoBanco[categoriaAtiva];
     return p.destaque && matchTipo;
   }).slice(0, 2);
 
-  // Filtra o cat\u00E1logo geral avaliando p.tipo
+  // Filtra o catálogo geral avaliando p.tipo
   const catalogoGeral = produtos.filter(p => {
     if (categoriaAtiva === 'Todas') return true;
     return p.tipo === mapTipoBanco[categoriaAtiva];
@@ -140,7 +140,7 @@ const Home = () => {
         <div className="text-center my-5">Carregando cat\u00E1logo...</div>
       ) : (
         <>
-          {/* Navega\u00E7\u00E3o de Filtros */}
+          {/* Navegação de Filtros */}
           <div className="mb-4">
             <h2 className="mb-3">Explore por Tipo</h2>
             <Nav variant="pills" className="gap-2">
@@ -159,10 +159,10 @@ const Home = () => {
             </Nav>
           </div>
 
-          {/* Se\u00E7\u00E3o de Destaques Filtrada */}
+          {/* Seção de Destaques Filtrada */}
           {destaques.length > 0 && (
             <div className="mb-5">
-              <h3 className="mb-4 text-danger">\uD83D\uDD25 Em Destaque {categoriaAtiva !== 'Todas' ? `(${categoriaAtiva})` : ''}</h3>
+              <h3 className="mb-4 text-danger">🔥 Em Destaque {categoriaAtiva !== 'Todas' ? `(${categoriaAtiva})` : ''}</h3>
               <Row>
                 {destaques.map(p => (
                   <Col md={6} key={`dest-${p.id}`} className="mb-3">
@@ -170,7 +170,7 @@ const Home = () => {
                       <Card.Body className="p-4 d-flex flex-column">
                         <Badge bg="warning" text="dark" className="mb-2 align-self-start">OFERTA ESPECIAL</Badge>
                         <Card.Title className="display-6">{p.nome}</Card.Title>
-                        <Card.Text className="text-muted text-capitalize">{p.marca} \u2022 {p.tipo}</Card.Text>
+                        <Card.Text className="text-muted text-capitalize">{p.marca} • {p.tipo}</Card.Text>
                         <div className="mt-auto d-flex justify-content-between align-items-center">
                           <h3 className="text-success mb-0">R$ {Number(p.preco).toFixed(2)}</h3>
                           {userRole === 'cliente' && (
@@ -187,7 +187,7 @@ const Home = () => {
 
           {/* Vitrine Geral Filtrada */}
           <div className="mb-5">
-            <h3 className="mb-4">Cat\u00E1logo Geral</h3>
+            <h3 className="mb-4">Catálogo Geral</h3>
             {catalogoGeral.length === 0 ? (
               <p className="text-muted">Nenhum instrumento encontrado para este tipo.</p>
             ) : (

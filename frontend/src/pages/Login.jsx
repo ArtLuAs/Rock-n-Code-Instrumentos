@@ -77,11 +77,11 @@ const Login = () => {
     setSucessoReg('');
 
     if (!reg.nome || !reg.cpf || !reg.senha) {
-      setErroReg('Nome, CPF e senha s\u00e3o obrigat\u00f3rios.');
+      setErroReg('Nome, CPF e senha são obrigatórios.');
       return;
     }
     if (reg.senha !== reg.confirmarSenha) {
-      setErroReg('As senhas n\u00e3o coincidem.');
+      setErroReg('As senhas não coincidem.');
       return;
     }
 
@@ -89,11 +89,11 @@ const Login = () => {
     try {
       const endpoint = isFuncionario ? '/registro/funcionario' : '/registro/cliente';
       await api.post(endpoint, reg);
-      setSucessoReg('Conta criada com sucesso! Fa\u00e7a login.');
+      setSucessoReg('Conta criada com sucesso! Faça login.');
       setReg(REGISTRO_VAZIO);
       setTimeout(() => { setSucessoReg(''); setAba('entrar'); }, 2000);
     } catch (err) {
-      setErroReg(err.message?.includes('409') ? 'CPF j\u00e1 cadastrado.' : `Erro: ${err.message}`);
+      setErroReg(err.message?.includes('409') ? 'CPF já cadastrado.' : `Erro: ${err.message}`);
     } finally {
       setLoadingReg(false);
     }
@@ -120,15 +120,15 @@ const Login = () => {
                   {erroLogin && <Alert variant="danger">{erroLogin}</Alert>}
                   <Form onSubmit={handleLogin}>
                     <Form.Group className="mb-3">
-                      <Form.Label>Tipo de usu\u00e1rio</Form.Label>
+                      <Form.Label>Tipo de usuário</Form.Label>
                       <Form.Select name="tipo" value={login.tipo} onChange={handleLoginChange} className={inputCls}>
-                        <option value="funcionario">Funcion\u00e1rio</option>
+                        <option value="funcionario">Funcionário</option>
                         <option value="cliente">Cliente</option>
                       </Form.Select>
                     </Form.Group>
                     <Form.Group className="mb-3">
                       <Form.Label>CPF</Form.Label>
-                      <Form.Control type="text" name="cpf" placeholder="Somente n\u00fameros"
+                      <Form.Control type="text" name="cpf" placeholder="Somente números"
                         value={login.cpf} onChange={handleLoginChange} required className={inputCls} />
                     </Form.Group>
                     <Form.Group className="mb-4">
@@ -151,11 +151,11 @@ const Login = () => {
                     style={{ backgroundColor: theme === 'dark' ? '#343a40' : '#e9ecef' }}>
                     <span className="fw-bold">
                       {isFuncionario
-                        ? <><Badge bg="warning" text="dark">Funcion\u00e1rio</Badge> Registrar como funcion\u00e1rio</>
+                        ? <><Badge bg="warning" text="dark">Funcionário</Badge> Registrar como funcionário</>
                         : <><Badge bg="success">Cliente</Badge> Registrar como cliente</>}
                     </span>
                     <Form.Check type="switch" id="tipo-switch"
-                      label="Sou funcion\u00e1rio"
+                      label="Sou funcionário"
                       checked={isFuncionario}
                       onChange={(e) => setIsFuncionario(e.target.checked)} />
                   </div>
@@ -169,7 +169,7 @@ const Login = () => {
                     <Row>
                       <Col md={6}>
                         <Form.Group className="mb-3">
-                          <Form.Label>CPF * <small className="text-muted">(somente n\u00fameros)</small></Form.Label>
+                          <Form.Label>CPF * <small className="text-muted">(somente números)</small></Form.Label>
                           <Form.Control type="text" name="cpf" value={reg.cpf} onChange={handleRegChange} className={inputCls} />
                         </Form.Group>
                       </Col>
@@ -207,10 +207,10 @@ const Login = () => {
                         </Row>
                         <div className="mb-3 d-flex flex-column gap-2">
                           <Form.Check type="switch" id="reg-flamengo"
-                            label="\u2764\ufe0f Torce para o Flamengo (10% de desconto)"
+                            label="🔴⚫ Torce para o Flamengo (10% de desconto)"
                             name="torceFlamengo" checked={reg.torceFlamengo} onChange={handleRegChange} />
                           <Form.Check type="switch" id="reg-onepiece"
-                            label="\u2693 Assiste One Piece (10% de desconto)"
+                            label="🏴‍☠️Assiste One Piece (10% de desconto)"
                             name="assisteOnePiece" checked={reg.assisteOnePiece} onChange={handleRegChange} />
                         </div>
                       </>
@@ -244,7 +244,7 @@ const Login = () => {
 
                     <Button variant={isFuncionario ? 'warning' : 'success'} type="submit"
                       className="w-100 py-2 fw-bold" disabled={loadingReg}>
-                      {loadingReg ? 'Criando conta...' : `Criar conta de ${isFuncionario ? 'funcion\u00e1rio' : 'cliente'}`}
+                      {loadingReg ? 'Criando conta...' : `Criar conta de ${isFuncionario ? 'funcionário' : 'cliente'}`}
                     </Button>
                   </Form>
                 </Tab>
