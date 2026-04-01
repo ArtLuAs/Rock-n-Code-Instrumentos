@@ -12,6 +12,9 @@ const FORMAS_PAGAMENTO = [
   { value: 'berries',        label: '🍓 Berries' },
 ];
 
+// Arredonda para o múltiplo de 50 >= ao valor — garante que o slider sempre chega no máximo
+const arredondarParaMultiplo50 = (valor) => Math.ceil(valor / 50) * 50;
+
 const Home = () => {
   const { theme } = useOutletContext();
   const [produtos, setProdutos]             = useState([]);
@@ -39,10 +42,9 @@ const Home = () => {
       try {
         const data = await api.get('/produtos');
         setProdutos(data);
-        // Ajusta o slider ao preço máximo real do catálogo
         if (data.length > 0) {
-          const maxReal = Math.ceil(Math.max(...data.map(p => parseFloat(p.preco))));
-          setPrecoMax(maxReal);
+          const maxReal = Math.max(...data.map(p => parseFloat(p.preco)));
+          setPrecoMax(arredondarParaMultiplo50(maxReal));
         }
       } catch {
         setAlerta({ show: true, variant: 'danger', message: 'Erro ao carregar os instrumentos.' });
@@ -53,10 +55,11 @@ const Home = () => {
     carregarDados();
   }, []);
 
-  // Preço máximo real do catálogo (para o limite do slider)
+  // Limite do slider = múltiplo de 50 >= preço máximo real
   const precoLimite = useMemo(() => {
     if (produtos.length === 0) return 10000;
-    return Math.ceil(Math.max(...produtos.map(p => parseFloat(p.preco))));
+    const maxReal = Math.max(...produtos.map(p => parseFloat(p.preco)));
+    return arredondarParaMultiplo50(maxReal);
   }, [produtos]);
 
   const handleToggleCart = () => setShowCart(!showCart);
@@ -107,14 +110,13 @@ const Home = () => {
     }
   };
 
-  // Função de filtro compartilhada (tipo + preço)
   const filtrar = (p) => {
     const matchTipo  = categoriaAtiva === 'Todas' || p.tipo === mapTipoBanco[categoriaAtiva];
     const matchPreco = parseFloat(p.preco) <= precoMax;
     return matchTipo && matchPreco;
   };
 
-  const destaques    = produtos.filter(p => p.destaque && filtrar(p)).slice(0, 2);
+  const destaques     = produtos.filter(p => p.destaque && filtrar(p)).slice(0, 2);
   const catalogoGeral = produtos.filter(filtrar);
 
   return (
