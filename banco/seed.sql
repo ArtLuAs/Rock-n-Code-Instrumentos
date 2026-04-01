@@ -1,0 +1,200 @@
+-- ====================================================================
+-- SEED: dados fictícios para demonstração
+-- Execute DEPOIS do loja_musical.sql:
+--   psql -U postgres -d loja_musical -f banco/seed.sql
+-- ====================================================================
+
+-- ===================== FUNCIONÁRIOS =====================
+INSERT INTO funcionarios (nome, cpf, telefone, email, cargo, senha) VALUES
+  ('Carlos Drummond',   '111.111.111-11', '(83) 99101-1111', 'carlos@rockncode.com',   'vendedor',   'senha123'),
+  ('Beatriz Veloso',    '222.222.222-22', '(83) 99101-2222', 'beatriz@rockncode.com',  'vendedor',   'senha123'),
+  ('Fábio Montenegro',  '333.333.333-33', '(83) 99101-3333', 'fabio@rockncode.com',    'gerente',    'senha123'),
+  ('Luana Ferreira',    '444.444.444-44', '(83) 99101-4444', 'luana@rockncode.com',    'vendedor',   'senha123'),
+  ('Rafael Soares',     '555.555.555-55', '(83) 99101-5555', 'rafael@rockncode.com',   'vendedor',   'senha123');
+
+-- ===================== CLIENTES =====================
+INSERT INTO clientes (nome, cpf, telefone, email, sexo, torce_flamengo, assiste_one_piece, cidade, senha) VALUES
+  ('João Silva',          '001.001.001-01', '(83) 98001-0001', 'joao@mail.com',      'Masculino', FALSE, FALSE, 'João Pessoa',   'senha123'),
+  ('Maria Oliveira',      '002.002.002-02', '(83) 98001-0002', 'maria@mail.com',     'Feminino',  TRUE,  FALSE, 'Campina Grande','senha123'),
+  ('Pedro Ramos',         '003.003.003-03', '(83) 98001-0003', 'pedro@mail.com',     'Masculino', FALSE, TRUE,  'Recife',        'senha123'),
+  ('Ana Souza',           '004.004.004-04', '(83) 98001-0004', 'ana@mail.com',       'Feminino',  FALSE, FALSE, 'Sousa',         'senha123'),
+  ('Lucas Martins',       '005.005.005-05', '(83) 98001-0005', 'lucas@mail.com',     'Masculino', TRUE,  TRUE,  'Natal',         'senha123'),
+  ('Fernanda Lima',       '006.006.006-06', '(83) 98001-0006', 'fernanda@mail.com',  'Feminino',  FALSE, FALSE, 'Fortaleza',     'senha123'),
+  ('Bruno Costa',         '007.007.007-07', '(83) 98001-0007', 'bruno@mail.com',     'Masculino', TRUE,  FALSE, 'Maceió',        'senha123'),
+  ('Camila Nunes',        '008.008.008-08', '(83) 98001-0008', 'camila@mail.com',    'Feminino',  FALSE, TRUE,  'João Pessoa',   'senha123'),
+  ('Diego Alves',         '009.009.009-09', '(83) 98001-0009', 'diego@mail.com',     'Masculino', FALSE, FALSE, 'Sousa',         'senha123'),
+  ('Elisa Torres',        '010.010.010-10', '(83) 98001-0010', 'elisa@mail.com',     'Feminino',  TRUE,  TRUE,  'Campina Grande','senha123');
+
+-- ===================== INSTRUMENTOS (50) =====================
+INSERT INTO instrumentos (nome, tipo, marca, preco, quantidade, categoria, fabricado_em_mari) VALUES
+-- Guitarras elétricas
+  ('Strato Vulcânica RX7',         'guitarra', 'Vulcane',     2499.90, 10, 'elétrica',   FALSE),
+  ('Les Dream Pro 59',             'guitarra', 'Dreamson',    3200.00,  7, 'elétrica',   FALSE),
+  ('Telecósmico Relic',            'guitarra', 'CosmoCraft',  1899.00, 12, 'elétrica',   FALSE),
+  ('SG Furacão 2000',              'guitarra', 'Furacão',     2750.00,  5, 'elétrica',   TRUE),
+  ('Jaguar Nebulosa',              'guitarra', 'NebCo',       3100.00,  8, 'elétrica',   FALSE),
+  ('Flying V Sertanejo',           'guitarra', 'SerCraft',    2100.00,  6, 'elétrica',   TRUE),
+  ('Explorer Catingueira',         'guitarra', 'SerCraft',    1950.00,  9, 'elétrica',   TRUE),
+  ('Offset Caatinga Blue',         'guitarra', 'CosmoCraft',  2300.00,  4, 'elétrica',   FALSE),
+  ('Superstrat Venom X',           'guitarra', 'VenomGear',   2850.00, 11, 'elétrica',   FALSE),
+  ('Hollow Delta Jazz',            'guitarra', 'Jazzola',     4100.00,  3, 'semi-acústica', FALSE),
+-- Guitarras acústicas
+  ('Dreadnought Sertão',           'guitarra', 'SerCraft',     899.00, 15, 'acústica',   TRUE),
+  ('Mini Jumbo Cabugi',            'guitarra', 'NebCo',        750.00, 20, 'acústica',   FALSE),
+  ('Concert Brejo Folk',           'guitarra', 'Jazzola',     1100.00, 10, 'acústica',   FALSE),
+  ('Auditorium Mandacaru',         'guitarra', 'SerCraft',     980.00, 13, 'acústica',   TRUE),
+  ('Parlor Xique-Xique',           'guitarra', 'CosmoCraft',   670.00, 18, 'acústica',   FALSE),
+-- Violões
+  ('Clássico Nylon Pro',           'violao',   'Jazzola',      599.00, 20, 'clássico',   FALSE),
+  ('Violão Folk Agreste',          'violao',   'SerCraft',     780.00, 14, 'folk',       TRUE),
+  ('Violão 12 Cordas Cosmos',      'violao',   'CosmoCraft',  1450.00,  6, 'folk',       FALSE),
+  ('Violão Cutaway Borborema',     'violao',   'NebCo',       1200.00,  9, 'cutaway',    FALSE),
+  ('Violão Concert Tamarindo',     'violao',   'SerCraft',     850.00, 16, 'clássico',   TRUE),
+  ('Violão Elétrico Mangabeira',   'violao',   'Vulcane',     1699.00,  7, 'eletro-acústico', FALSE),
+  ('Violão Jumbo Umbuzeiro',       'violao',   'Dreamson',    1100.00, 11, 'folk',       FALSE),
+  ('Violão Tenor Mandacaru',       'violao',   'SerCraft',     920.00, 12, 'tenor',      TRUE),
+  ('Violão Clássico Baraúna',      'violao',   'Jazzola',      680.00, 17, 'clássico',   FALSE),
+  ('Violão Mini Travel Caatinga',  'violao',   'NebCo',        540.00, 22, 'travel',     FALSE),
+-- Baixos elétricos
+  ('Precisão Rústica 4C',          'baixo',    'Vulcane',     1800.00,  8, 'elétrico',   FALSE),
+  ('Jazz Bass Cangaço',            'baixo',    'SerCraft',    2100.00,  6, 'elétrico',   TRUE),
+  ('Fretless Xaxado',              'baixo',    'CosmoCraft',  2400.00,  4, 'fretless',   FALSE),
+  ('5 Cordas Luanda',              'baixo',    'Dreamson',    3000.00,  5, 'elétrico',   FALSE),
+  ('Active Bass Riachuelo',        'baixo',    'VenomGear',   2750.00,  7, 'ativo',      FALSE),
+  ('Stingray Semiárido',           'baixo',    'NebCo',       3200.00,  3, 'ativo',      FALSE),
+  ('Hollow Bass Seridó',           'baixo',    'Jazzola',     2900.00,  4, 'semi-acústico', FALSE),
+  ('Short Scale Bodocó',           'baixo',    'SerCraft',    1600.00, 10, 'elétrico',   TRUE),
+  ('6 Cordas Litoral',             'baixo',    'Dreamson',    4200.00,  2, 'elétrico',   FALSE),
+  ('Fretless 5C Ipanema',          'baixo',    'CosmoCraft',  3500.00,  3, 'fretless',   FALSE),
+-- Guitarras baritona / especiais
+  ('Barítona Árida Tuning',        'guitarra', 'VenomGear',   3400.00,  4, 'barítono',   FALSE),
+  ('8 Cordas Forró Extremo',       'guitarra', 'VenomGear',   4800.00,  2, 'extended',   FALSE),
+  ('Resonator Chapada',            'guitarra', 'Jazzola',     2200.00,  5, 'acústica',   FALSE),
+  ('Lap Steel Salgado',            'guitarra', 'CosmoCraft',  1750.00,  6, 'steel',      FALSE),
+-- Violões especiais
+  ('Harp Guitar Espinhaço',        'violao',   'Dreamson',    5500.00,  1, 'harpa',      FALSE),
+  ('Violão Flamenco Cariri',       'violao',   'Jazzola',     2100.00,  5, 'flamenco',   FALSE),
+  ('Violão Barroco Mossoró',       'violao',   'CosmoCraft',  3200.00,  2, 'barroco',    FALSE),
+-- Baixos acústicos
+  ('Baixo Acústico Seridó',        'baixo',    'SerCraft',    2300.00,  4, 'acústico',   TRUE),
+  ('Bass Ukulele Cajueiro',        'baixo',    'NebCo',        980.00, 12, 'acústico',   FALSE),
+-- Guitarras signature
+  ('Signature Luiz Gonzaga Ed.',   'guitarra', 'SerCraft',    5900.00,  2, 'signature',  TRUE),
+  ('Signature Raul Seixas Relic',  'guitarra', 'Vulcane',     6200.00,  1, 'signature',  FALSE),
+  ('Signature Jackson do Pandeiro','baixo',    'SerCraft',    4500.00,  2, 'signature',  TRUE),
+-- Últimos para fechar 50
+  ('Stratocósmico HSH',            'guitarra', 'CosmoCraft',  2650.00,  9, 'elétrica',   FALSE),
+  ('Telecósmico Thinline',         'guitarra', 'CosmoCraft',  2450.00,  8, 'semi-acústica', FALSE),
+  ('Precision Active Caatinga',    'baixo',    'VenomGear',   3100.00,  5, 'ativo',      FALSE);
+
+-- ===================== PEDIDOS (50) =====================
+-- Mistura de clientes, funcionários, datas, formas de pagamento e status variados
+INSERT INTO pedidos (cliente_id, funcionario_id, data, forma_pagamento, status_pagamento, desconto, total) VALUES
+-- Janeiro 2026
+  (1, 1, '2026-01-03', 'pix',            'confirmado', 0.00,  2499.90),
+  (2, 1, '2026-01-05', 'cartao_credito', 'confirmado',10.00,  2880.00),
+  (3, 2, '2026-01-07', 'boleto',         'pendente',  10.00,  1709.10),
+  (4, 2, '2026-01-10', 'dinheiro',       'confirmado',10.00,   539.10),
+  (5, 3, '2026-01-12', 'pix',            'confirmado',10.00,  3510.00),
+  (6, 1, '2026-01-14', 'cartao_debito',  'confirmado', 0.00,  1800.00),
+  (7, 4, '2026-01-17', 'boleto',         'recusado',  10.00,  1890.00),
+  (8, 2, '2026-01-20', 'pix',            'confirmado',10.00,   990.00),
+  (9, 3, '2026-01-22', 'dinheiro',       'confirmado',10.00,   612.00),
+  (10,1, '2026-01-25', 'cartao_credito', 'confirmado',10.00,  5310.00),
+-- Fevereiro 2026
+  (1, 2, '2026-02-02', 'pix',            'confirmado', 0.00,  3100.00),
+  (2, 3, '2026-02-04', 'berries',        'pendente',  10.00,  2025.00),
+  (3, 1, '2026-02-06', 'cartao_credito', 'confirmado',10.00,  2160.00),
+  (4, 5, '2026-02-08', 'dinheiro',       'confirmado',10.00,   702.00),
+  (5, 4, '2026-02-11', 'boleto',         'recusado',  10.00,  4320.00),
+  (6, 2, '2026-02-13', 'pix',            'confirmado', 0.00,  2100.00),
+  (7, 1, '2026-02-16', 'cartao_debito',  'confirmado',10.00,  2340.00),
+  (8, 3, '2026-02-18', 'pix',            'pendente',  10.00,   855.00),
+  (9, 5, '2026-02-20', 'dinheiro',       'confirmado',10.00,  1440.00),
+  (10,4, '2026-02-24', 'berries',        'confirmado',10.00,  2970.00),
+-- Março 2026
+  (1, 1, '2026-03-01', 'pix',            'confirmado', 0.00,  1899.00),
+  (2, 2, '2026-03-03', 'cartao_credito', 'confirmado',10.00,  2970.00),
+  (3, 3, '2026-03-05', 'boleto',         'pendente',  10.00,  1440.00),
+  (4, 1, '2026-03-07', 'dinheiro',       'confirmado',10.00,   486.00),
+  (5, 5, '2026-03-10', 'pix',            'confirmado',10.00,  2250.00),
+  (6, 4, '2026-03-12', 'cartao_debito',  'confirmado', 0.00,  2900.00),
+  (7, 2, '2026-03-14', 'pix',            'confirmado',10.00,  1890.00),
+  (8, 1, '2026-03-17', 'berries',        'pendente',  10.00,  3150.00),
+  (9, 3, '2026-03-19', 'dinheiro',       'confirmado',10.00,  1080.00),
+  (10,5, '2026-03-21', 'cartao_credito', 'confirmado',10.00,  5580.00),
+  (1, 2, '2026-03-23', 'pix',            'confirmado', 0.00,  4100.00),
+  (2, 4, '2026-03-25', 'boleto',         'recusado',  10.00,  2880.00),
+  (3, 1, '2026-03-27', 'cartao_credito', 'confirmado',10.00,  3510.00),
+  (4, 3, '2026-03-28', 'dinheiro',       'confirmado',10.00,   621.00),
+  (5, 5, '2026-03-30', 'pix',            'confirmado',10.00,  1890.00),
+-- Abril 2026
+  (6, 1, '2026-04-01', 'pix',            'confirmado', 0.00,  2750.00),
+  (7, 2, '2026-04-02', 'cartao_credito', 'pendente',  10.00,  4320.00),
+  (8, 4, '2026-04-03', 'dinheiro',       'confirmado',10.00,   540.00),
+  (9, 3, '2026-04-04', 'boleto',         'confirmado',10.00,  1620.00),
+  (10,1, '2026-04-05', 'pix',            'confirmado',10.00,  5310.00),
+  (1, 5, '2026-04-06', 'cartao_debito',  'confirmado', 0.00,  3200.00),
+  (2, 2, '2026-04-07', 'berries',        'pendente',  10.00,  2700.00),
+  (3, 1, '2026-04-08', 'pix',            'confirmado',10.00,  1980.00),
+  (4, 4, '2026-04-09', 'dinheiro',       'confirmado',10.00,   810.00),
+  (5, 3, '2026-04-10', 'cartao_credito', 'confirmado',10.00,  2340.00),
+  (6, 5, '2026-04-11', 'pix',            'confirmado', 0.00,  1699.00),
+  (7, 2, '2026-04-12', 'boleto',         'recusado',  10.00,  5220.00),
+  (8, 1, '2026-04-13', 'cartao_debito',  'confirmado',10.00,   882.00),
+  (9, 4, '2026-04-14', 'pix',            'confirmado',10.00,  2970.00),
+  (10,3, '2026-04-15', 'dinheiro',       'confirmado',10.00,  3780.00);
+
+-- ===================== ITENS DOS PEDIDOS =====================
+-- Cada pedido tem 1 ou 2 itens referenciando os instrumentos inseridos
+INSERT INTO itens_pedido (pedido_id, instrumento_id, quantidade, preco_unitario) VALUES
+  (1,  1, 1, 2499.90),
+  (2,  2, 1, 3200.00),
+  (3,  3, 1, 1899.00),
+  (4,  16,1,  599.00),
+  (5,  5, 1, 3100.00),(5, 29,1, 3000.00),
+  (6,  26,1, 1800.00),
+  (7,  33,1, 1600.00),(7, 16,1,  599.00),
+  (8,  25,1,  540.00),(8, 16,1,  599.00),
+  (9,  16,1,  599.00),(9, 24,1,  680.00),
+  (10, 46,1, 5900.00),
+  (11, 5, 1, 3100.00),
+  (12, 9, 1, 2850.00),
+  (13, 3, 1, 1899.00),(13,26,1, 1800.00),
+  (14, 16,1,  599.00),(14,25,1,  540.00),
+  (15, 29,2, 3000.00),
+  (16, 27,1, 2100.00),
+  (17, 4, 1, 2750.00),
+  (18, 20,1,  850.00),(18,16,1,  599.00),
+  (19, 26,1, 1800.00),
+  (20, 29,1, 3000.00),
+  (21, 3, 1, 1899.00),
+  (22, 29,1, 3000.00),
+  (23, 26,1, 1800.00),
+  (24, 16,1,  599.00),
+  (25, 9, 1, 2850.00),
+  (26, 26,1, 1800.00),(26,28,1, 2900.00),
+  (27, 27,1, 2100.00),
+  (28, 29,1, 3000.00),(28,36,1,  980.00),
+  (29, 16,1,  599.00),(29,25,1,  540.00),
+  (30, 47,1, 6200.00),
+  (31, 10,1, 4100.00),
+  (32, 2, 1, 3200.00),
+  (33, 5, 1, 3100.00),(33,26,1, 1800.00),
+  (34, 16,1,  599.00),(34,24,1,  680.00),
+  (35, 27,1, 2100.00),
+  (36, 4, 1, 2750.00),
+  (37, 29,1, 3000.00),(37,36,1,  980.00),
+  (38, 36,1,  980.00),
+  (39, 26,1, 1800.00),
+  (40, 46,1, 5900.00),
+  (41, 30,1, 2750.00),(41, 9,1, 2850.00),
+  (42, 5, 1, 3100.00),
+  (43, 3, 1, 1899.00),(43,16,1,  599.00),
+  (44, 20,1,  850.00),(44,16,1,  540.00),
+  (45, 9, 1, 2850.00),
+  (46, 21,1, 1699.00),
+  (47, 46,1, 5900.00),
+  (48, 27,1, 2100.00),
+  (49, 29,1, 3000.00),
+  (50, 32,1, 3200.00),(50, 7,1, 1950.00);
