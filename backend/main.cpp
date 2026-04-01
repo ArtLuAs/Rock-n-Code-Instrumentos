@@ -13,11 +13,9 @@
 using namespace std;
 using json = nlohmann::json;
 
-// ===================== CORS =====================
-
 static void setCors(httplib::Response& res) {
     res.set_header("Access-Control-Allow-Origin",  "*");
-    res.set_header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
+    res.set_header("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS");
     res.set_header("Access-Control-Allow-Headers", "Content-Type, Authorization");
 }
 
@@ -45,8 +43,6 @@ static int intVal(const json& b, const string& key, int def = 0) {
     if (b[key].is_string()) return atoi(b[key].get<string>().c_str());
     return def;
 }
-
-// ===================== MAIN =====================
 
 int main() {
     PGconn* conn = conectar();
@@ -473,10 +469,39 @@ int main() {
     });
 
     // ==================================================
+    // PATCH /api/vendas/:id/status
+    // Body: { status: "confirmado" | "recusado" | "pendente" }
+    // ==================================================
+    svr.Patch("/api/vendas/(\\d+)/status", [conn](const httplib::Request& req, httplib::Response& res) {
+        try {
+            string id     = req.matches[1];
+            auto b        = json::parse(req.body);
+            string status = strVal(b, "status");
+
+            if (status != "pendente" && status != "confirmado" && status != "recusado") {
+                errResp(res, "Status invalido. Use: pendente, confirmado ou recusado"); return;
+            }
+
+            const char* p[2] = {status.c_str(), id.c_str()};
+            PGresult* result = PQexecParams(conn,
+                "UPDATE pedidos SET status_pagamento = $1::status_pgto WHERE id = $2::integer",
+                2, nullptr, p, nullptr, nullptr, 0);
+
+            if (PQresultStatus(result) == PGRES_COMMAND_OK) {
+                PQclear(result);
+                jsonResp(res, {{"success", true}, {"status", status}});
+            } else {
+                string err = PQerrorMessage(conn);
+                PQclear(result);
+                errResp(res, err);
+            }
+        } catch (const exception& e) {
+            errResp(res, string("Erro: ") + e.what());
+        }
+    });
+
+    // ==================================================
     // POST /api/vendas
-    // Procedure: efetuar_compra($1 clienteId, $2 funcionarioId,
-    //            $3 instrumentos[], $4 quantidades[],
-    //            NULL (OUT p_pedido_id), $5 formaPagamento varchar)
     // ==================================================
     svr.Post("/api/vendas", [conn](const httplib::Request& req, httplib::Response& res) {
         try {
@@ -510,9 +535,7 @@ int main() {
             string cliStr  = to_string(clienteId);
             string funcStr = to_string(funcionarioId);
 
-            // Assinatura atual da procedure:
-            // efetuar_compra(clienteId, funcionarioId, inst[], qtd[], OUT pedidoId, formaPgto varchar)
-            // No CALL: NULL ocupa a posicao do OUT (5a), formaPgto e o 6o argumento ($5)
+            // Assinatura: efetuar_compra(clienteId, funcionarioId, inst[], qtd[], OUT pedidoId, formaPgto varchar)
             const char* p[5] = {cliStr.c_str(), funcStr.c_str(),
                                 pgInst.c_str(), pgQtd.c_str(), formaPgto.c_str()};
             PGresult* result = PQexecParams(conn,
