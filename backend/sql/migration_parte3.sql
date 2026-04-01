@@ -7,8 +7,10 @@
 --   psql -U postgres -d loja_musical -f backend/sql/migration_parte3.sql
 -- ====================================================================
 
--- Recria a view com LEFT JOIN + COALESCE para pedidos sem funcionário
-CREATE OR REPLACE VIEW vw_vendas_por_vendedor_mes AS
+-- DROP obrigatório: CREATE OR REPLACE não aceita mudança de tipo de coluna
+DROP VIEW IF EXISTS vw_vendas_por_vendedor_mes;
+
+CREATE VIEW vw_vendas_por_vendedor_mes AS
 SELECT
     f.id                                          AS funcionario_id,
     COALESCE(f.nome, '(site / sem vendedor)')     AS vendedor,
