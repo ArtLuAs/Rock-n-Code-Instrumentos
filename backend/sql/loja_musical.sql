@@ -97,15 +97,17 @@ CREATE INDEX idx_pedidos_status         ON pedidos(status_pagamento);
 CREATE INDEX idx_itens_pedido_pedido    ON itens_pedido(pedido_id);
 
 -- ===================== VIEW: VENDAS POR VENDEDOR/MÊS =====================
+-- Usa LEFT JOIN para incluir também pedidos feitos sem vendedor (site).
+-- Nesses casos o nome aparece como '(site / sem vendedor)'.
 CREATE VIEW vw_vendas_por_vendedor_mes AS
 SELECT
-    f.id                              AS funcionario_id,
-    f.nome                            AS vendedor,
-    DATE_TRUNC('month', p.data)::DATE AS mes,
-    COUNT(p.id)                       AS total_pedidos,
-    SUM(p.total)                      AS total_vendido
+    f.id                                          AS funcionario_id,
+    COALESCE(f.nome, '(site / sem vendedor)')     AS vendedor,
+    DATE_TRUNC('month', p.data)::DATE             AS mes,
+    COUNT(p.id)                                   AS total_pedidos,
+    SUM(p.total)                                  AS total_vendido
 FROM pedidos p
-JOIN funcionarios f ON f.id = p.funcionario_id
+LEFT JOIN funcionarios f ON f.id = p.funcionario_id
 GROUP BY f.id, f.nome, DATE_TRUNC('month', p.data)
 ORDER BY mes DESC, total_vendido DESC;
 
@@ -188,6 +190,7 @@ GRANT ALL PRIVILEGES ON TABLE funcionarios  TO lojamusical_user;
 GRANT ALL PRIVILEGES ON TABLE pedidos       TO lojamusical_user;
 GRANT ALL PRIVILEGES ON TABLE itens_pedido  TO lojamusical_user;
 GRANT EXECUTE ON PROCEDURE efetuar_compra   TO lojamusical_user;
+GRANT SELECT ON vw_vendas_por_vendedor_mes  TO lojamusical_user;
 
 GRANT USAGE, SELECT ON SEQUENCE instrumentos_id_seq TO lojamusical_user;
 GRANT USAGE, SELECT ON SEQUENCE clientes_id_seq     TO lojamusical_user;
