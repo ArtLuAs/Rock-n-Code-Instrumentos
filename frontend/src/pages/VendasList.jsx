@@ -1,23 +1,34 @@
 import { useState, useEffect } from 'react';
-import { Table, Button, Container, Row, Col, Alert, InputGroup, Form, Badge } from 'react-bootstrap';
+import { Table, Button, Container, Row, Col, Alert, InputGroup, Form, Badge, ButtonGroup } from 'react-bootstrap';
 import { Link, useOutletContext } from 'react-router-dom';
 import { api } from '../services/api';
 
-// Mapeia status_pagamento para cor do badge
 const statusVariant = (status) => {
   if (status === 'confirmado') return 'success';
   if (status === 'recusado')   return 'danger';
-  return 'warning'; // pendente
+  return 'warning';
+};
+
+const statusLabel = (status) => {
+  if (status === 'confirmado') return '✔ confirmado';
+  if (status === 'recusado')   return '✘ recusado';
+  return '⏳ pendente';
 };
 
 const VendasList = () => {
   const { theme } = useOutletContext();
-  const [vendas, setVendas] = useState([]);
-  const [isLoading, setIsLoading] = useState(false);
-  const [alerta, setAlerta] = useState({ show: false, variant: '', message: '' });
+  const [vendas, setVendas]         = useState([]);
+  const [isLoading, setIsLoading]   = useState(false);
+  const [alerta, setAlerta]         = useState({ show: false, variant: '', message: '' });
+  const [atualizando, setAtualizando] = useState(null); // id da venda sendo atualizada
 
   const [searchTerm, setSearchTerm] = useState('');
   const [sortBy, setSortBy]         = useState('data-desc');
+
+  const mostrarAlerta = (variant, message) => {
+    setAlerta({ show: true, variant, message });
+    setTimeout(() => setAlerta({ show: false, variant: '', message: '' }), 4000);
+  };
 
   const carregarVendas = async () => {
     setIsLoading(true);
@@ -25,13 +36,29 @@ const VendasList = () => {
       const data = await api.get('/vendas');
       setVendas(data);
     } catch {
-      setAlerta({ show: true, variant: 'danger', message: 'Erro ao carregar o historico de vendas do servidor.' });
+      mostrarAlerta('danger', 'Erro ao carregar o historico de vendas.');
     } finally {
       setIsLoading(false);
     }
   };
 
   useEffect(() => { carregarVendas(); }, []);
+
+  const handleAlterarStatus = async (vendaId, novoStatus) => {
+    setAtualizando(vendaId);
+    try {
+      await api.patch(`/vendas/${vendaId}/status`, { status: novoStatus });
+      // Atualiza localmente sem recarregar tudo
+      setVendas(prev =>
+        prev.map(v => v.id === vendaId ? { ...v, statusPagamento: novoStatus } : v)
+      );
+      mostrarAlerta('success', `Venda #${vendaId} marcada como "${novoStatus}".`);
+    } catch (err) {
+      mostrarAlerta('danger', `Erro ao atualizar status: ${err.message}`);
+    } finally {
+      setAtualizando(null);
+    }
+  };
 
   const parseData = (dataStr) => {
     if (!dataStr) return new Date(0);
@@ -44,10 +71,9 @@ const VendasList = () => {
   const vendasFiltradas = vendas
     .filter(v => {
       const term = searchTerm.toLowerCase();
-      const idMatch      = v.id?.toString().includes(term);
-      const clienteMatch = (v.cliente || '').toLowerCase().includes(term) ||
-                           v.clienteId?.toString().includes(term);
-      return idMatch || clienteMatch;
+      return v.id?.toString().includes(term) ||
+             (v.cliente || '').toLowerCase().includes(term) ||
+             v.clienteId?.toString().includes(term);
     })
     .sort((a, b) => {
       if (sortBy === 'valor-desc') return parseFloat(b.total) - parseFloat(a.total);
@@ -111,8 +137,8 @@ const VendasList = () => {
             <th>Cliente</th>
             <th>Data</th>
             <th>Pagamento</th>
-            <th>Status</th>
             <th>Total (R$)</th>
+            <th>Status</th>
           </tr>
         </thead>
         <tbody>
@@ -123,16 +149,50 @@ const VendasList = () => {
           ) : (
             vendasFiltradas.map((venda) => (
               <tr key={venda.id}>
-                <td>{venda.id}</td>
-                <td>{venda.cliente ? `${venda.cliente} (#${venda.clienteId})` : `#${venda.clienteId}`}</td>
-                <td>{venda.data}</td>
-                <td>{(venda.formaPagamento || '').replace(/_/g, ' ')}</td>
-                <td>
-                  <Badge bg={statusVariant(venda.statusPagamento)}>
-                    {venda.statusPagamento || 'pendente'}
-                  </Badge>
+                <td className="align-middle">{venda.id}</td>
+                <td className="align-middle">
+                  {venda.cliente ? `${venda.cliente} (#${venda.clienteId})` : `#${venda.clienteId}`}
                 </td>
-                <td>{Number(venda.total).toFixed(2)}</td>
+                <td className="align-middle">{venda.data}</td>
+                <td className="align-middle">{(venda.formaPagamento || '').replace(/_/g, ' ')}</td>
+                <td className="align-middle">R$ {Number(venda.total).toFixed(2)}</td>
+                <td className="align-middle">
+                  <div className="d-flex align-items-center gap-2 flex-wrap">
+                    <Badge bg={statusVariant(venda.statusPagamento)} className="me-1">
+                      {statusLabel(venda.statusPagamento)}
+                    </Badge>
+                    {venda.statusPagamento !== 'confirmado' && (
+                      <Button
+                        size="sm" variant="outline-success"
+                        disabled={atualizando === venda.id}
+                        onClick={() => handleAlterarStatus(venda.id, 'confirmado')}
+                        title="Confirmar pagamento"
+                      >
+                        ✔
+                      </Button>
+                    )}
+                    {venda.statusPagamento !== 'recusado' && (
+                      <Button
+                        size="sm" variant="outline-danger"
+                        disabled={atualizando === venda.id}
+                        onClick={() => handleAlterarStatus(venda.id, 'recusado')}
+                        title="Recusar pagamento"
+                      >
+                        ✘
+                      </Button>
+                    )}
+                    {venda.statusPagamento !== 'pendente' && (
+                      <Button
+                        size="sm" variant="outline-warning"
+                        disabled={atualizando === venda.id}
+                        onClick={() => handleAlterarStatus(venda.id, 'pendente')}
+                        title="Voltar para pendente"
+                      >
+                        ↩
+                      </Button>
+                    )}
+                  </div>
+                </td>
               </tr>
             ))
           )}
