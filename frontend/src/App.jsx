@@ -10,6 +10,7 @@ import NovaVenda from './pages/NovaVenda';
 import Login from './pages/Login';
 import MinhaConta from './pages/MinhaConta';
 import MeusPedidos from './pages/MeusPedidos';
+import RelatorioMensal from './pages/RelatorioMensal';
 
 const Layout = ({ theme, toggleTheme }) => (
   <>
@@ -54,7 +55,6 @@ function App() {
       <Routes>
         <Route path="/login" element={<Login />} />
 
-        {/* Layout publico — acessivel sem login */}
         <Route path="/" element={<Layout theme={theme} toggleTheme={toggleTheme} />}>
 
           <Route index element={<Home />} />
@@ -66,6 +66,7 @@ function App() {
           <Route path="clientes" element={<PrivateRoute allowedRoles={['funcionario']}><ClientesList /></PrivateRoute>} />
           <Route path="vendas" element={<PrivateRoute allowedRoles={['funcionario']}><VendasList /></PrivateRoute>} />
           <Route path="vendas/nova" element={<PrivateRoute allowedRoles={['funcionario']}><NovaVenda /></PrivateRoute>} />
+          <Route path="relatorio" element={<PrivateRoute allowedRoles={['funcionario']}><RelatorioMensal /></PrivateRoute>} />
 
           {/* Rotas do Cliente */}
           <Route path="minha-conta" element={<PrivateRoute allowedRoles={['cliente']}><MinhaConta /></PrivateRoute>} />
