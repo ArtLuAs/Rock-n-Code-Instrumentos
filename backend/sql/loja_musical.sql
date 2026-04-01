@@ -61,8 +61,6 @@ CREATE TABLE funcionarios (
 );
 
 -- ===================== PEDIDOS =====================
--- funcionario_id: NULL quando o cliente faz o pedido pelo site;
---                 preenchido quando um funcionário registra ou confirma/recusa o pagamento.
 CREATE TABLE pedidos (
     id               SERIAL        PRIMARY KEY,
     cliente_id       INTEGER       NOT NULL REFERENCES clientes(id)     ON DELETE RESTRICT,
@@ -97,8 +95,6 @@ CREATE INDEX idx_pedidos_status         ON pedidos(status_pagamento);
 CREATE INDEX idx_itens_pedido_pedido    ON itens_pedido(pedido_id);
 
 -- ===================== VIEW: VENDAS POR VENDEDOR/MÊS =====================
--- Usa LEFT JOIN para incluir também pedidos feitos sem vendedor (site).
--- Nesses casos o nome aparece como '(site / sem vendedor)'.
 CREATE VIEW vw_vendas_por_vendedor_mes AS
 SELECT
     f.id                                          AS funcionario_id,
@@ -112,7 +108,6 @@ GROUP BY f.id, f.nome, DATE_TRUNC('month', p.data)
 ORDER BY mes DESC, total_vendido DESC;
 
 -- ===================== STORED PROCEDURE: EFETUAR COMPRA =====================
--- p_funcionario_id pode ser NULL (pedido feito pelo próprio cliente no site).
 CREATE OR REPLACE PROCEDURE efetuar_compra(
     p_cliente_id      INTEGER,
     p_funcionario_id  INTEGER,
@@ -142,7 +137,7 @@ BEGIN
        NOT EXISTS (SELECT 1 FROM funcionarios WHERE id = p_funcionario_id) THEN
         RAISE EXCEPTION 'Funcionário % não encontrado.', p_funcionario_id;
     END IF;
-
+    --- DESCONTO ESPECIAL: 10% para torcedores do Flamengo, fãs de One Piece ou moradores de Sousa
     SELECT torce_flamengo, assiste_one_piece, LOWER(COALESCE(cidade, ''))
     INTO v_torce_flam, v_one_piece, v_cidade
     FROM clientes WHERE id = p_cliente_id;
