@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Container, Row, Col, Card, Button, Badge, Offcanvas, ListGroup, Alert, Form, Nav } from 'react-bootstrap';
+import { Container, Row, Col, Card, Button, Badge, Offcanvas, ListGroup, Alert, Nav } from 'react-bootstrap';
 import { useOutletContext } from 'react-router-dom';
 import { api } from '../services/api';
 
@@ -16,7 +16,14 @@ const Home = () => {
 
   // Filtros de Categoria na Vitrine
   const [categoriaAtiva, setCategoriaAtiva] = useState('Todas');
-  const categorias = ["Todas", "Cordas", "Teclas", "Percussão", "Sopro", "Acessórios"];
+  const categorias = ["Todas", "Guitarra", "Violão", "Baixo"];
+
+  // Mapeamento: Traduz o nome do botão para o valor exato da coluna 'tipo' no BD
+  const mapTipoBanco = {
+    "Guitarra": "guitarra",
+    "Violão": "violao",
+    "Baixo": "baixo"
+  };
 
   const userRole = localStorage.getItem('auth-role');
   const userId = parseInt(localStorage.getItem('auth-id'), 10);
@@ -25,6 +32,7 @@ const Home = () => {
     const carregarDados = async () => {
       setIsLoading(true);
       try {
+        // A requisição busca todos os produtos corretamente
         const data = await api.get('/produtos');
         setProdutos(data);
       } catch (error) {
@@ -85,11 +93,19 @@ const Home = () => {
     }
   };
 
-  // --- Lógica de Exibição ---
-  const destaques = produtos.filter(p => p.destaque).slice(0, 2); // Pega os 2 primeiros marcados como destaque
+  // --- Lógica de Exibição com os Filtros Corrigidos ---
+  
+  // Filtra os destaques avaliando a propriedade p.tipo com base no botão ativo
+  const destaques = produtos.filter(p => {
+    const isDestaque = p.destaque; // Presumindo que sua API envia esse booleano
+    const matchTipo = categoriaAtiva === 'Todas' || p.tipo === mapTipoBanco[categoriaAtiva];
+    return isDestaque && matchTipo;
+  }).slice(0, 2); 
+
+  // Filtra o catálogo geral avaliando p.tipo
   const catalogoGeral = produtos.filter(p => {
-    const matchCat = categoriaAtiva === 'Todas' || p.categoria === categoriaAtiva;
-    return matchCat;
+    if (categoriaAtiva === 'Todas') return true;
+    return p.tipo === mapTipoBanco[categoriaAtiva];
   });
 
   return (
@@ -117,35 +133,10 @@ const Home = () => {
         <div className="text-center my-5">Carregando catálogo...</div>
       ) : (
         <>
-          {/* Seção de Destaques (Sempre no topo) */}
-          {destaques.length > 0 && (
-            <div className="mb-5">
-              <h2 className="mb-4">🔥 Em Destaque</h2>
-              <Row>
-                {destaques.map(p => (
-                  <Col md={6} key={`dest-${p.id}`} className="mb-3">
-                    <Card className={`h-100 border-0 shadow ${theme === 'dark' ? 'bg-secondary text-white' : 'bg-white'}`}>
-                      <Card.Body className="p-4 d-flex flex-column">
-                        <Badge bg="warning" text="dark" className="mb-2 align-self-start">OFERTA ESPECIAL</Badge>
-                        <Card.Title className="display-6">{p.nome}</Card.Title>
-                        <Card.Text className="text-muted">{p.categoria}</Card.Text>
-                        <div className="mt-auto d-flex justify-content-between align-items-center">
-                          <h3 className="text-success mb-0">R$ {Number(p.preco).toFixed(2)}</h3>
-                          {userRole === 'cliente' && <Button variant="dark" onClick={() => adicionarAoCarrinho(p)}>Comprar Agora</Button>}
-                        </div>
-                      </Card.Body>
-                    </Card>
-                  </Col>
-                ))}
-              </Row>
-            </div>
-          )}
-
-          {/* Vitrine Geral com Filtros */}
-          <div className="mb-5">
-            <h2 className="mb-4">Explore a Nossa Loja</h2>
-            
-            <Nav variant="pills" className="mb-4 gap-2">
+          {/* Navegação de Filtros */}
+          <div className="mb-4">
+            <h2 className="mb-3">Explore por Tipo</h2>
+            <Nav variant="pills" className="gap-2">
               {categorias.map(cat => (
                 <Nav.Item key={cat}>
                   <Nav.Link 
@@ -159,34 +150,68 @@ const Home = () => {
                 </Nav.Item>
               ))}
             </Nav>
+          </div>
 
-            <Row>
-              {catalogoGeral.map(p => (
-                <Col xs={12} sm={6} md={4} lg={3} key={p.id} className="mb-4">
-                  <Card className={`h-100 ${theme === 'dark' ? 'bg-dark border-secondary' : 'shadow-sm'}`}>
-                    <Card.Body className="d-flex flex-column p-3">
-                      <div className="mb-2">
-                         <Badge bg="info" className="fw-normal">{p.categoria}</Badge>
-                      </div>
-                      <Card.Title className="fs-5">{p.nome}</Card.Title>
-                      <h5 className="text-success mt-auto">R$ {Number(p.preco).toFixed(2)}</h5>
-                      <div className="text-muted small mb-2">{p.quantidade > 0 ? `${p.quantidade} em estoque` : 'Esgotado'}</div>
-                      
-                      {userRole === 'cliente' && (
-                        <Button 
-                          variant="outline-primary" 
-                          size="sm" 
-                          disabled={p.quantidade <= 0}
-                          onClick={() => adicionarAoCarrinho(p)}
-                        >
-                          Adicionar
-                        </Button>
-                      )}
-                    </Card.Body>
-                  </Card>
-                </Col>
-              ))}
-            </Row>
+          {/* Seção de Destaques Filtrada */}
+          {destaques.length > 0 && (
+            <div className="mb-5">
+              <h3 className="mb-4 text-danger">🔥 Em Destaque {categoriaAtiva !== 'Todas' ? `(${categoriaAtiva})` : ''}</h3>
+              <Row>
+                {destaques.map(p => (
+                  <Col md={6} key={`dest-${p.id}`} className="mb-3">
+                    <Card className={`h-100 border-0 shadow ${theme === 'dark' ? 'bg-secondary text-white' : 'bg-white'}`}>
+                      <Card.Body className="p-4 d-flex flex-column">
+                        <Badge bg="warning" text="dark" className="mb-2 align-self-start">OFERTA ESPECIAL</Badge>
+                        <Card.Title className="display-6">{p.nome}</Card.Title>
+                        {/* Mostra a marca e o tipo para ficar mais detalhado */}
+                        <Card.Text className="text-muted text-capitalize">{p.marca} • {p.tipo}</Card.Text>
+                        <div className="mt-auto d-flex justify-content-between align-items-center">
+                          <h3 className="text-success mb-0">R$ {Number(p.preco).toFixed(2)}</h3>
+                          {userRole === 'cliente' && <Button variant="dark" onClick={() => adicionarAoCarrinho(p)}>Comprar Agora</Button>}
+                        </div>
+                      </Card.Body>
+                    </Card>
+                  </Col>
+                ))}
+              </Row>
+            </div>
+          )}
+
+          {/* Vitrine Geral Filtrada */}
+          <div className="mb-5">
+            <h3 className="mb-4">Catálogo Geral</h3>
+            {catalogoGeral.length === 0 ? (
+               <p className="text-muted">Nenhum instrumento encontrado para este tipo.</p>
+            ) : (
+              <Row>
+                {catalogoGeral.map(p => (
+                  <Col xs={12} sm={6} md={4} lg={3} key={p.id} className="mb-4">
+                    <Card className={`h-100 ${theme === 'dark' ? 'bg-dark border-secondary' : 'shadow-sm'}`}>
+                      <Card.Body className="d-flex flex-column p-3">
+                        <div className="mb-2">
+                           <Badge bg="info" className="fw-normal text-capitalize">{p.tipo}</Badge>
+                        </div>
+                        <Card.Title className="fs-5">{p.nome}</Card.Title>
+                        <Card.Text className="text-muted small">{p.marca}</Card.Text>
+                        <h5 className="text-success mt-auto">R$ {Number(p.preco).toFixed(2)}</h5>
+                        <div className="text-muted small mb-2">{p.quantidade > 0 ? `${p.quantidade} em estoque` : 'Esgotado'}</div>
+                        
+                        {userRole === 'cliente' && (
+                          <Button 
+                            variant="outline-primary" 
+                            size="sm" 
+                            disabled={p.quantidade <= 0}
+                            onClick={() => adicionarAoCarrinho(p)}
+                          >
+                            Adicionar
+                          </Button>
+                        )}
+                      </Card.Body>
+                    </Card>
+                  </Col>
+                ))}
+              </Row>
+            )}
           </div>
         </>
       )}
