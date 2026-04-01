@@ -446,28 +446,24 @@ int main() {
         PGresult* result = PQexec(conn,
             "SELECT p.id, c.nome AS cliente, c.id AS cliente_id, "
             "COALESCE(f.nome, '—') AS vendedor, "
-            "COALESCE(cf.nome, '') AS confirmado_por, "
             "p.data, p.forma_pagamento::text, p.status_pagamento::text, p.desconto, p.total "
             "FROM pedidos p "
             "JOIN clientes c ON c.id = p.cliente_id "
-            "LEFT JOIN funcionarios f  ON f.id  = p.funcionario_id "
-            "LEFT JOIN funcionarios cf ON cf.id = p.confirmado_por_id "
+            "LEFT JOIN funcionarios f ON f.id = p.funcionario_id "
             "ORDER BY p.id;");
         json arr = json::array();
         int rows = PQntuples(result);
         for (int i = 0; i < rows; i++) {
-            string cfNome = PQgetvalue(result, i, 4);
             arr.push_back({
                 {"id",              atoi(PQgetvalue(result, i, 0))},
                 {"cliente",         PQgetvalue(result, i, 1)},
                 {"clienteId",       atoi(PQgetvalue(result, i, 2))},
                 {"vendedor",        PQgetvalue(result, i, 3)},
-                {"confirmadoPor",   cfNome.empty() ? json(nullptr) : json(cfNome)},
-                {"data",            PQgetvalue(result, i, 5)},
-                {"formaPagamento",  PQgetvalue(result, i, 6)},
-                {"statusPagamento", PQgetvalue(result, i, 7)},
-                {"desconto",        atof(PQgetvalue(result, i, 8))},
-                {"total",           atof(PQgetvalue(result, i, 9))}
+                {"data",            PQgetvalue(result, i, 4)},
+                {"formaPagamento",  PQgetvalue(result, i, 5)},
+                {"statusPagamento", PQgetvalue(result, i, 6)},
+                {"desconto",        atof(PQgetvalue(result, i, 7))},
+                {"total",           atof(PQgetvalue(result, i, 8))}
             });
         }
         PQclear(result); jsonResp(res, arr);
@@ -476,7 +472,7 @@ int main() {
     // ==================================================
     // PATCH /api/vendas/:id/status
     // Body: { status: "confirmado"|"recusado"|"pendente", funcionarioId: N }
-    // funcionarioId obrigatorio para confirmado/recusado; opcional para pendente
+    // funcionarioId obrigatorio para confirmado/recusado; para pendente limpa o campo
     // ==================================================
     svr.Patch("/api/vendas/(\\d+)/status", [conn](const httplib::Request& req, httplib::Response& res) {
         try {
@@ -489,24 +485,23 @@ int main() {
             }
 
             PGresult* result;
-
-            // Se confirmado ou recusado: grava quem fez a acao
             bool temFuncionario = b.contains("funcionarioId") && !b["funcionarioId"].is_null();
 
             if (temFuncionario && status != "pendente") {
+                // Grava quem confirmou/recusou no funcionario_id
                 string funcId = to_string(intVal(b, "funcionarioId"));
                 const char* p[3] = {status.c_str(), funcId.c_str(), id.c_str()};
                 result = PQexecParams(conn,
                     "UPDATE pedidos "
-                    "SET status_pagamento = $1::status_pgto, confirmado_por_id = $2::integer "
+                    "SET status_pagamento = $1::status_pgto, funcionario_id = $2::integer "
                     "WHERE id = $3::integer",
                     3, nullptr, p, nullptr, nullptr, 0);
             } else {
-                // pendente: limpa o confirmado_por_id
+                // pendente: limpa o funcionario_id
                 const char* p[2] = {status.c_str(), id.c_str()};
                 result = PQexecParams(conn,
                     "UPDATE pedidos "
-                    "SET status_pagamento = $1::status_pgto, confirmado_por_id = NULL "
+                    "SET status_pagamento = $1::status_pgto, funcionario_id = NULL "
                     "WHERE id = $2::integer",
                     2, nullptr, p, nullptr, nullptr, 0);
             }
@@ -531,17 +526,16 @@ int main() {
         try {
             auto b = json::parse(req.body);
 
-            int    clienteId     = intVal(b, "clienteId");
-            string formaPgto     = strVal(b, "formaPagamento", "dinheiro");
-
+            int clienteId = intVal(b, "clienteId");
             if (clienteId == 0) {
                 errResp(res, "clienteId e obrigatorio"); return;
             }
 
-            // funcionarioId pode ser null (pedido pelo cliente no site)
+            // funcionarioId pode ser null (pedido feito pelo cliente no site)
             bool temFunc = b.contains("funcionarioId") && !b["funcionarioId"].is_null()
                            && intVal(b, "funcionarioId") != 0;
-            string funcStr = temFunc ? to_string(intVal(b, "funcionarioId")) : "";
+            string funcStr   = temFunc ? to_string(intVal(b, "funcionarioId")) : "";
+            string formaPgto = strVal(b, "formaPagamento", "dinheiro");
 
             auto instJson = b.at("instrumentos");
             auto qtdJson  = b.at("quantidades");
@@ -561,8 +555,8 @@ int main() {
             pgInst += "}"; pgQtd += "}";
 
             string cliStr = to_string(clienteId);
-
             PGresult* result;
+
             if (temFunc) {
                 const char* p[5] = {cliStr.c_str(), funcStr.c_str(),
                                     pgInst.c_str(), pgQtd.c_str(), formaPgto.c_str()};
@@ -571,7 +565,7 @@ int main() {
                     "$3::integer[],$4::integer[],NULL,$5::varchar)",
                     5, nullptr, p, nullptr, nullptr, 0);
             } else {
-                // funcionario_id = NULL
+                // funcionario_id = NULL (cliente comprando pelo site)
                 const char* p[4] = {cliStr.c_str(),
                                     pgInst.c_str(), pgQtd.c_str(), formaPgto.c_str()};
                 result = PQexecParams(conn,

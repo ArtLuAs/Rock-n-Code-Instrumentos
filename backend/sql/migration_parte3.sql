@@ -6,27 +6,27 @@
 
 \c loja_musical;
 
--- 1. Torna funcionario_id opcional (NULL = pedido feito pelo próprio cliente)
+-- 1. Torna funcionario_id opcional
+--    (NULL = pedido feito pelo cliente; preenchido quando funcionário confirma/recusa)
 ALTER TABLE pedidos
     ALTER COLUMN funcionario_id DROP NOT NULL;
 
--- 2. Adiciona coluna confirmado_por_id (quem confirmou/recusou o pagamento)
---    Só executa se a coluna ainda não existir
+-- 2. Remove confirmado_por_id se foi adicionado por migration anterior
 DO $$
 BEGIN
-    IF NOT EXISTS (
+    IF EXISTS (
         SELECT 1 FROM information_schema.columns
         WHERE table_name = 'pedidos' AND column_name = 'confirmado_por_id'
     ) THEN
-        ALTER TABLE pedidos
-            ADD COLUMN confirmado_por_id INTEGER REFERENCES funcionarios(id) ON DELETE SET NULL;
-
-        CREATE INDEX idx_pedidos_confirmado_por ON pedidos(confirmado_por_id);
+        ALTER TABLE pedidos DROP COLUMN confirmado_por_id;
     END IF;
 END;
 $$;
 
--- 3. Atualiza a stored procedure para aceitar funcionario_id NULL
+-- 3. Remove índice de confirmado_por se existir
+DROP INDEX IF EXISTS idx_pedidos_confirmado_por;
+
+-- 4. Atualiza a stored procedure para aceitar funcionario_id NULL
 CREATE OR REPLACE PROCEDURE efetuar_compra(
     p_cliente_id      INTEGER,
     p_funcionario_id  INTEGER,
