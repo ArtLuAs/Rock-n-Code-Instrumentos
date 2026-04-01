@@ -2,7 +2,7 @@
 # :guitar::musical_note: Rock ’n’ Code Instrumentos
 
 - ### [:dart: Objetivo](#dart-objetivo-1)
-- ### [:notes: Diagrama de Classes](#notes-diagrama-de-classes-1)
+- ### [:notes: Diagramas](#notes-diagramas-1)
 - ### [:control_knobs: Dependências](#control_knobs-dependências-1)
 - ### [:musical_score: Documentação](#musical_score-documentação-1)
 - ### [:loud_sound: Como rodar](#loud_sound-como-rodar-1)
@@ -52,9 +52,19 @@ O sistema segue aos requisitos de desenvolvimento estabelecidos pelas especifica
 </a>
 
 
-## :notes: Diagrama de Classes
+## :notes: Diagramas
 
-![Diagrama Rock n Code](./docs/DIAGRAMAROCKNCODE.png)
+### Diagrama Conceitual
+
+![Diagrama Conceitual](./Diagrama_conceitual.png)
+
+### Modelo Lógico
+
+![Diagrama Conceitual](./modelo_logico.svg)
+
+### Diagrama de Classes
+
+![Diagrama Rock n Code](./backend/docs/DIAGRAMAROCKNCODE.png)
 
 ## :control_knobs: Dependências
 
