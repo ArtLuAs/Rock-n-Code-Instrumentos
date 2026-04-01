@@ -472,7 +472,6 @@ int main() {
     // ==================================================
     // PATCH /api/vendas/:id/status
     // Body: { status: "confirmado"|"recusado"|"pendente", funcionarioId: N }
-    // funcionarioId obrigatorio para confirmado/recusado; para pendente limpa o campo
     // ==================================================
     svr.Patch("/api/vendas/(\\d+)/status", [conn](const httplib::Request& req, httplib::Response& res) {
         try {
@@ -488,7 +487,6 @@ int main() {
             bool temFuncionario = b.contains("funcionarioId") && !b["funcionarioId"].is_null();
 
             if (temFuncionario && status != "pendente") {
-                // Grava quem confirmou/recusou no funcionario_id
                 string funcId = to_string(intVal(b, "funcionarioId"));
                 const char* p[3] = {status.c_str(), funcId.c_str(), id.c_str()};
                 result = PQexecParams(conn,
@@ -497,7 +495,6 @@ int main() {
                     "WHERE id = $3::integer",
                     3, nullptr, p, nullptr, nullptr, 0);
             } else {
-                // pendente: limpa o funcionario_id
                 const char* p[2] = {status.c_str(), id.c_str()};
                 result = PQexecParams(conn,
                     "UPDATE pedidos "
@@ -531,7 +528,6 @@ int main() {
                 errResp(res, "clienteId e obrigatorio"); return;
             }
 
-            // funcionarioId pode ser null (pedido feito pelo cliente no site)
             bool temFunc = b.contains("funcionarioId") && !b["funcionarioId"].is_null()
                            && intVal(b, "funcionarioId") != 0;
             string funcStr   = temFunc ? to_string(intVal(b, "funcionarioId")) : "";
@@ -565,7 +561,6 @@ int main() {
                     "$3::integer[],$4::integer[],NULL,$5::varchar)",
                     5, nullptr, p, nullptr, nullptr, 0);
             } else {
-                // funcionario_id = NULL (cliente comprando pelo site)
                 const char* p[4] = {cliStr.c_str(),
                                     pgInst.c_str(), pgQtd.c_str(), formaPgto.c_str()};
                 result = PQexecParams(conn,
@@ -585,6 +580,101 @@ int main() {
         } catch (const exception& e) {
             errResp(res, string("Erro: ") + e.what());
         }
+    });
+
+    // ==================================================
+    // GET /api/relatorio/mensal?ano=YYYY&mes=MM
+    // Retorna: totalVendas, receitaConfirmada, receitaPendente,
+    //          ticketMedio, produtoMaisVendido, topProdutos, vendas
+    // ==================================================
+    svr.Get("/api/relatorio/mensal", [conn](const httplib::Request& req, httplib::Response& res) {
+        string ano = req.get_param_value("ano");
+        string mes = req.get_param_value("mes");
+
+        if (ano.empty() || mes.empty()) {
+            errResp(res, "Parametros 'ano' e 'mes' sao obrigatorios"); return;
+        }
+
+        // -- 1. Lista de vendas do mes --
+        const char* p2[2] = {ano.c_str(), mes.c_str()};
+        PGresult* rVendas = PQexecParams(conn,
+            "SELECT p.id, c.nome AS cliente, "
+            "TO_CHAR(p.data, 'DD/MM/YYYY') AS data, "
+            "p.forma_pagamento::text, p.status_pagamento::text, p.total "
+            "FROM pedidos p "
+            "JOIN clientes c ON c.id = p.cliente_id "
+            "WHERE EXTRACT(YEAR  FROM p.data) = $1::integer "
+            "  AND EXTRACT(MONTH FROM p.data) = $2::integer "
+            "ORDER BY p.data DESC, p.id DESC",
+            2, nullptr, p2, nullptr, nullptr, 0);
+
+        json vendas = json::array();
+        int nVendas = PQntuples(rVendas);
+        double recConf = 0, recPend = 0, totalGeral = 0;
+
+        for (int i = 0; i < nVendas; i++) {
+            string status = PQgetvalue(rVendas, i, 4);
+            double total  = atof(PQgetvalue(rVendas, i, 5));
+            if (status == "confirmado") recConf += total;
+            if (status == "pendente")   recPend += total;
+            totalGeral += total;
+
+            vendas.push_back({
+                {"id",              atoi(PQgetvalue(rVendas, i, 0))},
+                {"cliente",         PQgetvalue(rVendas, i, 1)},
+                {"data",            PQgetvalue(rVendas, i, 2)},
+                {"formaPagamento",  PQgetvalue(rVendas, i, 3)},
+                {"statusPagamento", status},
+                {"total",           total}
+            });
+        }
+        PQclear(rVendas);
+
+        double ticketMedio = nVendas > 0 ? totalGeral / nVendas : 0;
+
+        // -- 2. Top produtos do mes --
+        PGresult* rTop = PQexecParams(conn,
+            "SELECT i.nome, SUM(ip.quantidade) AS qtd, "
+            "SUM(ip.quantidade * ip.preco_unitario) AS receita "
+            "FROM itens_pedido ip "
+            "JOIN instrumentos i ON i.id = ip.instrumento_id "
+            "JOIN pedidos p ON p.id = ip.pedido_id "
+            "WHERE EXTRACT(YEAR  FROM p.data) = $1::integer "
+            "  AND EXTRACT(MONTH FROM p.data) = $2::integer "
+            "GROUP BY i.nome "
+            "ORDER BY qtd DESC "
+            "LIMIT 10",
+            2, nullptr, p2, nullptr, nullptr, 0);
+
+        json topProdutos = json::array();
+        int nTop = PQntuples(rTop);
+        for (int i = 0; i < nTop; i++) {
+            topProdutos.push_back({
+                {"nome",       PQgetvalue(rTop, i, 0)},
+                {"quantidade", atoi(PQgetvalue(rTop, i, 1))},
+                {"receita",    atof(PQgetvalue(rTop, i, 2))}
+            });
+        }
+
+        json prodMaisVendido = nullptr;
+        if (nTop > 0) {
+            prodMaisVendido = {
+                {"nome",       PQgetvalue(rTop, 0, 0)},
+                {"quantidade", atoi(PQgetvalue(rTop, 0, 1))}
+            };
+        }
+        PQclear(rTop);
+
+        json resposta = {
+            {"totalVendas",        nVendas},
+            {"receitaConfirmada",  recConf},
+            {"receitaPendente",    recPend},
+            {"ticketMedio",        ticketMedio},
+            {"produtoMaisVendido", prodMaisVendido},
+            {"topProdutos",        topProdutos},
+            {"vendas",             vendas}
+        };
+        jsonResp(res, resposta);
     });
 
     cout << "Endpoints ativos em http://localhost:8080" << endl;
