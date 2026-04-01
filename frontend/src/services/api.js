@@ -26,6 +26,13 @@ export const api = {
       body: JSON.stringify(data),
     }).then(handleResponse),
 
+  patch: (endpoint, data) =>
+    fetch(`${BASE_URL}${endpoint}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    }).then(handleResponse),
+
   delete: (endpoint) =>
     fetch(`${BASE_URL}${endpoint}`, {
       method: 'DELETE',
